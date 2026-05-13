@@ -1,0 +1,82 @@
+# LearningService CI only
+
+name: LearningService CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: learning-service-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build, test and Docker check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_DB: learning_service
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 6767:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d learning_service"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:6767/learning_service
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+
+      LEARNING_SERVICE_INTERNAL_API_KEY: dev-learning-service-internal-key
+
+      USER_SERVICE_JWT_ISSUER_URI: http://localhost:8081
+      USER_SERVICE_JWT_JWK_SET_URI: http://localhost:8081/api/v1/auth/.well-known/jwks.json
+      USER_SERVICE_JWT_AUDIENCE: study-platform
+      LEARNING_SERVICE_JWT_ROLES_CLAIM: roles
+      LEARNING_SERVICE_JWT_ROLE_PREFIX: ROLE_
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Make Maven wrapper executable
+        run: chmod +x ./mvnw
+
+      - name: Build and test
+        run: ./mvnw -B clean verify
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: studybytes/learning-service:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+  
