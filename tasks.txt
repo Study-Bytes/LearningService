@@ -1,0 +1,325 @@
+# Issue 5. Implement course enrollment/start progress
+
+## Background
+
+When a student starts learning, LearningService should create and update progress records.
+Current MVP stores progress directly in progress tables.
+
+## Tasks
+
+- [ ] Add endpoint `POST /api/v1/learning/course-enrollments/`
+- [ ] Add endpoint `POST /api/v1/learning/module-progress/`
+- [ ] Add endpoint `POST /api/v1/learning/task-progress/`
+- [ ] Add endpoint `PUT /api/v1/learning/course-enrollments/{userId}/{courseId}`
+- [ ] Add endpoint `PUT /api/v1/learning/module-progress/{userId}/{courseId}/{moduleId}`
+- [ ] Add endpoint `PUT /api/v1/learning/task-progress/{userId}/{courseId}/{moduleId}/{taskId}`
+- [ ] Add endpoint `GET /api/v1/learning/course-enrollments/{userId}/{courseId}`
+- [ ] Add endpoint `GET /api/v1/learning/module-progress/{userId}/{courseId}/{moduleId}`
+- [ ] Add endpoint `GET /api/v1/learning/task-progress/{userId}/{courseId}/{moduleId}/{taskId}`
+- [ ] Return existing error response format for duplicates and not found
+
+## Acceptance Criteria
+
+- [ ] Progress records can be created for course/module/task
+- [ ] Progress records can be updated
+- [ ] Progress records can be fetched by composite keys
+- [ ] Duplicate create returns `409 Conflict`
+- [ ] Not found returns `404`
+- [ ] Project builds successfully
+
+
+# Issue 6. Implement task progress update logic
+
+## Background
+
+Task progress changes over learning activity.  
+Current MVP supports direct task progress updates via API.
+
+## Tasks
+
+- [ ] Support statuses: `NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `LOCKED`
+- [ ] Store number of attempts
+- [ ] Store best score
+- [ ] Store last score
+- [ ] Store `startedAt`
+- [ ] Store `completedAt`
+- [ ] Store task activity timestamps
+- [ ] Validate non-negative numeric fields
+- [ ] Return updated task progress after `PUT`
+
+## Acceptance Criteria
+
+- [ ] Task status can be updated through API
+- [ ] Attempts counter is stored
+- [ ] Best score is stored
+- [ ] Last score is stored
+- [ ] Completion timestamps are stored
+- [ ] Validation errors return `400`
+- [ ] Project builds successfully
+
+
+# Issue 7. Implement module and course progress recalculation
+
+## Background
+
+Module and course progress should be consistent with task progress.  
+Current MVP supports manual updates through module/course progress endpoints.
+
+## Tasks
+
+- [ ] Add service method for module progress recalculation (manual trigger/service call)
+- [ ] Add service method for course progress recalculation (manual trigger/service call)
+- [ ] Calculate completed tasks count
+- [ ] Calculate total tasks count
+- [ ] Calculate progress percentage
+- [ ] Update module status
+- [ ] Update course status
+- [ ] Set course status to `COMPLETED` when all required tasks are completed
+- [ ] Keep current `PUT` endpoints compatible with recalculated values
+
+## Acceptance Criteria
+
+- [ ] Module progress can be recalculated correctly
+- [ ] Course progress can be recalculated correctly
+- [ ] Progress percentage is calculated correctly
+- [ ] Module can become `COMPLETED`
+- [ ] Course can become `COMPLETED`
+- [ ] Recalculation does not break existing API
+- [ ] Project builds successfully
+
+
+# Issue 8. Implement code submission endpoint
+
+## Background
+
+Submission flow is planned after progress MVP is stabilized.
+
+## Tasks
+
+- [ ] Add endpoint `POST /api/v1/learning/tasks/{taskId}/submissions`
+- [ ] Accept language and source code
+- [ ] Validate task existence through CourseService
+- [ ] Create submission with status `PENDING`
+- [ ] Store submitted code
+- [ ] Increase attempt count
+- [ ] Send execution request to ExecutorService
+- [ ] Return submission ID and current status
+
+## Acceptance Criteria
+
+- [ ] Student can submit code
+- [ ] Submission is linked to user and task
+- [ ] Invalid request returns `400`
+- [ ] Unknown task returns `404`
+- [ ] Submission is saved before executor call
+- [ ] Project builds successfully
+
+
+# Issue 9. Add ExecutorService client
+
+## Background
+
+LearningService will send submitted code to ExecutorService for execution.
+
+## Tasks
+
+- [ ] Add HTTP client for ExecutorService
+- [ ] Configure ExecutorService base URL
+- [ ] Create execution request DTO
+- [ ] Create execution response DTO
+- [ ] Send source code, language and tests metadata
+- [ ] Handle successful execution result
+- [ ] Handle compilation error
+- [ ] Handle runtime error
+- [ ] Handle timeout
+- [ ] Handle ExecutorService unavailable error
+
+## Acceptance Criteria
+
+- [ ] LearningService can call ExecutorService
+- [ ] Execution request contains required task and code data
+- [ ] Successful execution is parsed correctly
+- [ ] Failed execution is parsed correctly
+- [ ] Executor timeout is handled safely
+- [ ] Executor unavailable error does not lose saved submission
+- [ ] Project builds successfully
+
+
+# Issue 10. Process execution results and store test results
+
+## Background
+
+After ExecutorService returns result, LearningService must update submission and progress.
+
+## Tasks
+
+- [ ] Update submission status after execution
+- [ ] Store total score
+- [ ] Store max score
+- [ ] Store execution time
+- [ ] Store memory usage if available
+- [ ] Store compilation error if present
+- [ ] Store runtime error if present
+- [ ] Store open test results
+- [ ] Store hidden test results without exposing hidden details publicly
+- [ ] Trigger task/module/course progress recalculation
+
+## Acceptance Criteria
+
+- [ ] Passed execution marks submission as `PASSED`
+- [ ] Failed execution marks submission as `FAILED`
+- [ ] Compilation error is stored
+- [ ] Runtime error is stored
+- [ ] Test results are linked to submission
+- [ ] Hidden test details are not exposed in student API
+- [ ] Task progress updates after result
+- [ ] Course progress updates after result
+- [ ] Project builds successfully
+
+
+# Issue 11. Add student progress API
+
+## Background
+
+Student should be able to see personal progress by course, module and task.  
+Current MVP already exposes progress by composite keys.
+
+## Tasks
+
+- [ ] Keep endpoint `GET /api/v1/learning/course-enrollments/{userId}/{courseId}`
+- [ ] Keep endpoint `GET /api/v1/learning/module-progress/{userId}/{courseId}/{moduleId}`
+- [ ] Keep endpoint `GET /api/v1/learning/task-progress/{userId}/{courseId}/{moduleId}/{taskId}`
+- [ ] Add endpoint `GET /api/v1/learning/me/progress` (next step)
+- [ ] Return course status and percentage
+- [ ] Return module statuses and percentages
+- [ ] Return task statuses, attempts and best score
+- [ ] Ensure user sees only own progress (after JWT integration)
+
+## Acceptance Criteria
+
+- [ ] Student can get progress for one course
+- [ ] Student can get progress for one module
+- [ ] Student can get progress for one task
+- [ ] Response contains statuses, score and percentages
+- [ ] API remains compatible with current MVP endpoints
+- [ ] Project builds successfully
+
+
+# Issue 12. Add submissions history API
+
+## Background
+
+Student should be able to view previous submissions and details of a selected submission.
+
+## Tasks
+
+- [ ] Add endpoint `GET /api/v1/learning/tasks/{taskId}/submissions`
+- [ ] Add endpoint `GET /api/v1/learning/submissions/{submissionId}`
+- [ ] Return submission status
+- [ ] Return score
+- [ ] Return language
+- [ ] Return submitted code
+- [ ] Return open test results
+- [ ] Hide hidden test input/output
+- [ ] Hide internal ExecutorService metadata
+- [ ] Ensure student sees only own submissions
+
+## Acceptance Criteria
+
+- [ ] Student can see submission history for task
+- [ ] Student can open own submission details
+- [ ] Open test results are visible
+- [ ] Hidden test details are not visible
+- [ ] Another user’s submission is not accessible
+- [ ] Unknown submission returns `404`
+- [ ] Project builds successfully
+
+
+# Issue 13. Add unit and integration tests
+
+## Background
+
+LearningService contains important business logic and API behavior that must be covered by tests.
+
+## Tasks
+
+- [ ] Add unit tests for task progress update logic
+- [ ] Add unit tests for module progress recalculation
+- [ ] Add unit tests for course progress recalculation
+- [ ] Add unit tests for best score logic
+- [ ] Add controller tests for progress API
+- [ ] Add integration tests with test database
+- [ ] Mock CourseService client
+- [ ] Mock ExecutorService client
+- [ ] Add negative tests for unauthorized access
+
+## Acceptance Criteria
+
+- [ ] Progress calculation tests pass
+- [ ] API flow tests pass
+- [ ] Security tests pass
+- [ ] Integration tests run with test profile
+- [ ] CourseService is mocked in tests
+- [ ] ExecutorService is mocked in tests
+- [ ] Project builds successfully
+- [ ] Tests pass locally
+
+
+# Issue 14. Configure CI pipeline
+
+## Background
+
+LearningService should be automatically checked on every pull request.
+
+## Tasks
+
+- [ ] Add GitHub Actions workflow
+- [ ] Run build on pull requests
+- [ ] Run build on pushes to main branch
+- [ ] Set up Java version
+- [ ] Cache Maven dependencies
+- [ ] Run unit tests
+- [ ] Run integration tests
+- [ ] Run code style check if configured
+- [ ] Publish test reports if possible
+
+## Acceptance Criteria
+
+- [ ] CI starts on pull request
+- [ ] CI starts on push to main
+- [ ] Project builds in CI
+- [ ] Tests run in CI
+- [ ] Failed tests fail the pipeline
+- [ ] CI status is visible in GitHub PR
+- [ ] README contains CI information
+
+
+# Issue 15. Add Docker and deployment configuration
+
+## Background
+
+LearningService should be runnable locally with other services and deployable in project environment.
+
+## Tasks
+
+- [ ] Add `Dockerfile`
+- [ ] Add `.dockerignore`
+- [ ] Add docker-compose config for local run
+- [ ] Add PostgreSQL service to docker-compose
+- [ ] Add environment variables for DB connection
+- [ ] Add environment variables for CourseService URL
+- [ ] Add environment variables for ExecutorService URL
+- [ ] Add healthcheck
+- [ ] Document local deployment flow
+- [ ] Document required environment variables
+
+## Acceptance Criteria
+
+- [ ] Docker image builds successfully
+- [ ] LearningService starts in Docker
+- [ ] LearningService connects to PostgreSQL in docker-compose
+- [ ] Schema is initialized in container
+- [ ] CourseService URL is configurable
+- [ ] ExecutorService URL is configurable
+- [ ] Healthcheck works
+- [ ] README contains deployment instructions
