@@ -1,0 +1,637 @@
+openapi: 3.0.3
+info:
+  title: LearningService API Contracts
+  version: 1.0.0
+  description: Contracts for course/module/task progress endpoints.
+servers:
+  - url: http://localhost:8090
+paths:
+  /api/v1/learning/course-enrollments:
+    post:
+      tags: [CourseEnrollments]
+      operationId: createCourseEnrollment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseEnrollmentCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseEnrollmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/learning/course-enrollments/{userId}/{courseId}:
+    get:
+      tags: [CourseEnrollments]
+      operationId: getCourseEnrollmentByUserAndCourse
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/CourseId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseEnrollmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [CourseEnrollments]
+      operationId: updateCourseEnrollment
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/CourseId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CourseEnrollmentUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseEnrollmentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/learning/module-progress:
+    post:
+      tags: [ModuleProgress]
+      operationId: createModuleProgress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleProgressCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/learning/module-progress/{userId}/{courseId}/{moduleId}:
+    get:
+      tags: [ModuleProgress]
+      operationId: getModuleProgressByUserCourseModule
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ModuleId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [ModuleProgress]
+      operationId: updateModuleProgress
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ModuleId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ModuleProgressUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/learning/task-progress:
+    post:
+      tags: [TaskProgress]
+      operationId: createTaskProgress
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskProgressCreateRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/v1/learning/task-progress/{userId}/{courseId}/{moduleId}/{taskId}:
+    get:
+      tags: [TaskProgress]
+      operationId: getTaskProgressByUserCourseModuleTask
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ModuleId'
+        - $ref: '#/components/parameters/TaskId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [TaskProgress]
+      operationId: updateTaskProgress
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ModuleId'
+        - $ref: '#/components/parameters/TaskId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskProgressUpdateRequest'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskProgressResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+components:
+  parameters:
+    UserId:
+      name: userId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    CourseId:
+      name: courseId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    ModuleId:
+      name: moduleId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    TaskId:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+
+  responses:
+    BadRequest:
+      description: Validation or request format error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Entity not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: Entity already exists for unique key
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    ProgressStatus:
+      type: string
+      enum:
+        - NOT_STARTED
+        - IN_PROGRESS
+        - COMPLETED
+        - LOCKED
+
+    CourseEnrollmentCreateRequest:
+      type: object
+      required: [userId, courseId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+        courseId:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        completedTasksCount:
+          type: integer
+          minimum: 0
+        totalTasksCount:
+          type: integer
+          minimum: 0
+        totalScore:
+          type: integer
+          minimum: 0
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+
+    CourseEnrollmentUpdateRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        completedTasksCount:
+          type: integer
+          minimum: 0
+        totalTasksCount:
+          type: integer
+          minimum: 0
+        totalScore:
+          type: integer
+          minimum: 0
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+
+    CourseEnrollmentResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: number
+        completedTasksCount:
+          type: integer
+        totalTasksCount:
+          type: integer
+        totalScore:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ModuleProgressCreateRequest:
+      type: object
+      required: [userId, courseId, moduleId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+        courseId:
+          type: integer
+          format: int64
+          minimum: 1
+        moduleId:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        completedTasksCount:
+          type: integer
+          minimum: 0
+        totalTasksCount:
+          type: integer
+          minimum: 0
+        score:
+          type: integer
+          minimum: 0
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+
+    ModuleProgressUpdateRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: number
+          minimum: 0
+          maximum: 100
+        completedTasksCount:
+          type: integer
+          minimum: 0
+        totalTasksCount:
+          type: integer
+          minimum: 0
+        score:
+          type: integer
+          minimum: 0
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+
+    ModuleProgressResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        moduleId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: number
+        completedTasksCount:
+          type: integer
+        totalTasksCount:
+          type: integer
+        score:
+          type: integer
+        startedAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    TaskProgressCreateRequest:
+      type: object
+      required: [userId, courseId, moduleId, taskId]
+      properties:
+        userId:
+          type: integer
+          format: int64
+          minimum: 1
+        courseId:
+          type: integer
+          format: int64
+          minimum: 1
+        moduleId:
+          type: integer
+          format: int64
+          minimum: 1
+        taskId:
+          type: integer
+          format: int64
+          minimum: 1
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        attemptsCount:
+          type: integer
+          minimum: 0
+        bestScore:
+          type: integer
+          minimum: 0
+        lastScore:
+          type: integer
+          minimum: 0
+        isCompleted:
+          type: boolean
+        firstOpenedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        firstSuccessAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastSubmissionAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+
+    TaskProgressUpdateRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        attemptsCount:
+          type: integer
+          minimum: 0
+        bestScore:
+          type: integer
+          minimum: 0
+        lastScore:
+          type: integer
+          minimum: 0
+        isCompleted:
+          type: boolean
+        firstOpenedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        firstSuccessAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastSubmissionAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+
+    TaskProgressResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        courseId:
+          type: integer
+          format: int64
+        moduleId:
+          type: integer
+          format: int64
+        taskId:
+          type: integer
+          format: int64
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        attemptsCount:
+          type: integer
+        bestScore:
+          type: integer
+        lastScore:
+          type: integer
+        isCompleted:
+          type: boolean
+        firstOpenedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        firstSuccessAt:
+          type: string
+          format: date-time
+        completedAt:
+          type: string
+          format: date-time
+        lastSubmissionAt:
+          type: string
+          format: date-time
+        lastActivityAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
