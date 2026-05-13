@@ -4,7 +4,38 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="eed1dec1-812c-447b-ab85-8412be42fd77" name="Changes" comment="" />
+    <list default="true" id="eed1dec1-812c-447b-ab85-8412be42fd77" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/ProgressStatus.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/dto/ErrorResponse.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/exception/ConflictException.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/exception/GlobalExceptionHandler.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/exception/NotFoundException.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollment.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentCreateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentRepository.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentResponse.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentUpdateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgress.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressCreateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressRepository.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressResponse.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressUpdateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgress.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressController.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressCreateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressRepository.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressResponse.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressService.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressUpdateRequest.java" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/tasks.txt" beforeDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -50,7 +81,7 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "8-task-implement-task-progress-update-logic",
+    "git-widget-placeholder": "12-task-add-local-docs-and-repository-hygiene",
     "ignore.virus.scanning.warn.message": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "C:/Users/Public/Enotich Enotov/Projects/StudyBytes/LearningService",

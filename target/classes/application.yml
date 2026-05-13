@@ -18,3 +18,17 @@ spring:
           time_zone: UTC
         type:
           prefer_native_enum_types: true
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+security:
+  jwt:
+    secret: "change-this-secret-key-change-this-secret-key"
