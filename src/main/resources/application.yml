@@ -37,10 +37,9 @@ security:
 
 coderunner:
   course-service:
-    base-url: ${CODERUNNER_COURSE_SERVICE_BASE_URL:http://localhost:8081}
+    base-url: ${CODERUNNER_COURSE_SERVICE_BASE_URL:http://localhost:8082}
     internal-api-key-header: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER:X-Internal-API-Key}
     internal-api-key: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY:dev-learning-service-internal-key}
-    mock-enabled: ${CODERUNNER_COURSE_SERVICE_MOCK_ENABLED:false}
   executor-service:
-    base-url: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL:http://localhost:8083}
+    base-url: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL:http://localhost:8095}
     auth-token: ${CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN:dev-executor-service-token}

@@ -204,6 +204,48 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/learning/tasks/{taskId}/submissions:
+    post:
+      tags: [CodeRunner]
+      operationId: createTaskSubmission
+      parameters:
+        - $ref: '#/components/parameters/TaskId'
+        - $ref: '#/components/parameters/UserIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmissionCreateRequest'
+            examples:
+              batchMode:
+                summary: Batch execution mode
+                description: Runs all tests in one batch request to CodeExecutorService.
+                value:
+                  taskId: 2
+                  language: python
+                  sourceCode: "import sys\nprint(sys.stdin.read(), end='')"
+                  executionMode: BATCH
+              oneByOneMode:
+                summary: One-by-one execution mode
+                description: Creates executor session and runs tests sequentially one by one.
+                value:
+                  taskId: 2
+                  language: python
+                  sourceCode: "import sys\nprint(sys.stdin.read(), end='')"
+                  executionMode: ONE_BY_ONE
+      responses:
+        '201':
+          description: Submission created and executed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 components:
   parameters:
     UserId:
@@ -233,6 +275,14 @@ components:
     TaskId:
       name: taskId
       in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    UserIdHeader:
+      name: user_id
+      in: header
       required: true
       schema:
         type: integer
@@ -635,3 +685,57 @@ components:
           type: string
         path:
           type: string
+
+    ExecutionMode:
+      type: string
+      description: |
+        Code execution mode:
+        - BATCH: run all tests in one batch request.
+        - ONE_BY_ONE: create session and run tests one by one.
+      enum:
+        - BATCH
+        - ONE_BY_ONE
+
+    SubmissionCreateRequest:
+      type: object
+      required: [taskId, language, sourceCode]
+      properties:
+        taskId:
+          type: integer
+          format: int64
+          minimum: 1
+        language:
+          type: string
+          maxLength: 50
+        sourceCode:
+          type: string
+        executionMode:
+          allOf:
+            - $ref: '#/components/schemas/ExecutionMode'
+          description: Optional. `BATCH` (default) runs all tests in one batch request; `ONE_BY_ONE` runs tests sequentially in one session.
+
+    SubmissionCreateResponse:
+      type: object
+      properties:
+        submissionId:
+          type: integer
+          format: int64
+        status:
+          type: string
+          example: FINISHED
+        verdict:
+          type: string
+          nullable: true
+          example: OK
+        score:
+          type: integer
+          nullable: true
+        passedTestsCount:
+          type: integer
+          nullable: true
+        totalTestsCount:
+          type: integer
+          nullable: true
+        executorRequestId:
+          type: string
+          nullable: true

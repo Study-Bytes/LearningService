@@ -7,10 +7,9 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "coderunner.course-service")
 public class CourseServiceProperties {
 
-    private String baseUrl = "http://localhost:8081";
+    private String baseUrl = "http://localhost:8082";
     private String internalApiKeyHeader = "X-Internal-API-Key";
     private String internalApiKey = "dev-learning-service-internal-key";
-    private boolean mockEnabled = false;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -36,11 +35,4 @@ public class CourseServiceProperties {
         this.internalApiKey = internalApiKey;
     }
 
-    public boolean isMockEnabled() {
-        return mockEnabled;
-    }
-
-    public void setMockEnabled(boolean mockEnabled) {
-        this.mockEnabled = mockEnabled;
-    }
 }

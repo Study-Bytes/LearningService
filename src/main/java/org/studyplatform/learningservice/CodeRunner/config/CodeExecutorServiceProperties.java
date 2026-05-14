@@ -7,7 +7,7 @@ import org.springframework.stereotype.Component;
 @ConfigurationProperties(prefix = "coderunner.executor-service")
 public class CodeExecutorServiceProperties {
 
-    private String baseUrl = "http://localhost:8083";
+    private String baseUrl = "http://localhost:8095";
     private String authToken = "dev-executor-service-token";
 
     public String getBaseUrl() {

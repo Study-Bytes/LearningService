@@ -18,6 +18,8 @@ public class SubmissionCreateRequest {
     @NotBlank
     private String sourceCode;
 
+    private ExecutionMode executionMode = ExecutionMode.BATCH;
+
     public Long getTaskId() {
         return taskId;
     }
@@ -40,5 +42,13 @@ public class SubmissionCreateRequest {
 
     public void setSourceCode(String sourceCode) {
         this.sourceCode = sourceCode;
+    }
+
+    public ExecutionMode getExecutionMode() {
+        return executionMode;
+    }
+
+    public void setExecutionMode(ExecutionMode executionMode) {
+        this.executionMode = executionMode;
     }
 }

@@ -1,6 +1,5 @@
 package org.studyplatform.learningservice.CodeRunner.client.course;
 
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
@@ -9,12 +8,6 @@ import org.studyplatform.learningservice.CodeRunner.config.CourseServiceProperti
 import org.studyplatform.learningservice.common.exception.NotFoundException;
 
 @Component
-@ConditionalOnProperty(
-        prefix = "coderunner.course-service",
-        name = "mock-enabled",
-        havingValue = "false",
-        matchIfMissing = true
-)
 public class CourseServiceClient implements CourseExecutionPackageProvider {
 
     private final RestClient restClient;
