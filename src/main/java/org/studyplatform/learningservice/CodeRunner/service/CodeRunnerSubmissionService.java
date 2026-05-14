@@ -6,11 +6,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionCreateRequest;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionCreateResponse;
+import org.studyplatform.learningservice.CodeRunner.api.ExecutionMode;
 import org.studyplatform.learningservice.CodeRunner.client.course.CourseItemExecutionPackage;
 import org.studyplatform.learningservice.CodeRunner.client.course.CourseExecutionPackageProvider;
 import org.studyplatform.learningservice.CodeRunner.client.executor.CodeExecutorClient;
 import org.studyplatform.learningservice.CodeRunner.client.executor.ExecutionCreateRequest;
 import org.studyplatform.learningservice.CodeRunner.client.executor.ExecutionResponse;
+import org.studyplatform.learningservice.CodeRunner.client.executor.ExecutionSessionCreateRequest;
+import org.studyplatform.learningservice.CodeRunner.client.executor.ExecutionTestRunRequest;
 import org.studyplatform.learningservice.CodeRunner.persistence.SubmissionStatus;
 import org.studyplatform.learningservice.CodeRunner.persistence.SubmissionTestResult;
 import org.studyplatform.learningservice.CodeRunner.persistence.SubmissionTestResultRepository;
@@ -104,10 +107,11 @@ public class CodeRunnerSubmissionService {
         submission = taskSubmissionRepository.save(submission);
 
         ExecutionCreateRequest executorRequest = buildExecutorRequest(executionPackage, request, submission);
+        ExecutionMode executionMode = resolveExecutionMode(request.getExecutionMode());
 
         ExecutionResponse executionResponse;
         try {
-            executionResponse = codeExecutorClient.executeBatch(executorRequest);
+            executionResponse = executeByMode(executionMode, executorRequest);
         } catch (RuntimeException ex) {
             submission.setStatus(SubmissionStatus.FAILED);
             submission.setVerdict(SubmissionVerdict.PE);
@@ -213,6 +217,79 @@ public class CodeRunnerSubmissionService {
         return toResponse(submission);
     }
 
+    private ExecutionResponse executeByMode(ExecutionMode mode, ExecutionCreateRequest request) {
+        if (mode == ExecutionMode.ONE_BY_ONE) {
+            return executeOneByOne(request);
+        }
+        return codeExecutorClient.executeBatch(request);
+    }
+
+    private ExecutionResponse executeOneByOne(ExecutionCreateRequest request) {
+        ExecutionSessionCreateRequest sessionRequest = new ExecutionSessionCreateRequest(
+                request.language(),
+                request.code(),
+                request.limits(),
+                request.executionPolicy(),
+                request.metadata()
+        );
+
+        ExecutionResponse sessionResponse = codeExecutorClient.createSession(sessionRequest);
+        String sessionId = sessionResponse == null ? null : sessionResponse.id();
+        if (sessionId == null || sessionId.isBlank()) {
+            throw new IllegalStateException("CodeExecutorService returned empty session id");
+        }
+
+        List<ExecutionResponse.TestExecutionResult> results = new ArrayList<>();
+        long totalDurationMs = 0L;
+        Integer peakMemoryMb = null;
+        try {
+            List<ExecutionCreateRequest.TestInput> tests = request.tests();
+            if (tests != null) {
+                for (ExecutionCreateRequest.TestInput test : tests) {
+                    ExecutionTestRunRequest testRunRequest = new ExecutionTestRunRequest(
+                            test.id(),
+                            test.input(),
+                            test.timeoutMs()
+                    );
+                    ExecutionResponse.TestExecutionResult result = codeExecutorClient.runTest(sessionId, testRunRequest);
+                    if (result != null) {
+                        results.add(result);
+
+                        Integer durationMs = result.durationMs();
+                        if (durationMs != null) {
+                            totalDurationMs += durationMs.longValue();
+                        }
+
+                        Integer memoryMb = result.memoryMb();
+                        if (memoryMb != null) {
+                            peakMemoryMb = peakMemoryMb == null ? memoryMb : Math.max(peakMemoryMb, memoryMb);
+                        }
+                    }
+                }
+            }
+        } finally {
+            try {
+                codeExecutorClient.cancelSession(sessionId);
+            } catch (RuntimeException ignore) {
+                // executor session cleanup error should not hide main execution result
+            }
+        }
+
+        int boundedTotalDurationMs = totalDurationMs > Integer.MAX_VALUE
+                ? Integer.MAX_VALUE
+                : (int) totalDurationMs;
+
+        return new ExecutionResponse(
+                sessionId,
+                "FINISHED",
+                request.language(),
+                boundedTotalDurationMs,
+                peakMemoryMb,
+                results,
+                request.metadata()
+        );
+    }
+
     private void validateExecutionPackage(
             Long taskId,
             Long expectedCourseId,
@@ -293,9 +370,7 @@ public class CodeRunnerSubmissionService {
         );
 
         Map<String, Object> metadata = new HashMap<>();
-        metadata.put("submissionId", submission.getId());
-        metadata.put("taskId", submission.getTaskId());
-        metadata.put("userId", submission.getUserId());
+        metadata.put("taskId", String.valueOf(submission.getTaskId()));
 
         return new ExecutionCreateRequest(
                 request.getLanguage(),
@@ -305,6 +380,10 @@ public class CodeRunnerSubmissionService {
                 executorPolicy,
                 metadata
         );
+    }
+
+    private ExecutionMode resolveExecutionMode(ExecutionMode mode) {
+        return mode == null ? ExecutionMode.BATCH : mode;
     }
 
     private Map<String, ExecutionResponse.TestExecutionResult> indexExecutionResults(

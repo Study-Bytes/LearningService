@@ -17,17 +17,17 @@ services:
       timeout: 3s
       retries: 20
 
-  mock-course-service:
-    image: wiremock/wiremock:3.13.1
-    command: ["--disable-banner"]
+  code-executor-service:
+    build:
+      context: ../CodeExecutorService
+      dockerfile: Dockerfile
+    environment:
+      SERVER_PORT: ${CODE_EXECUTOR_SERVER_PORT}
+    ports:
+      - "${CODE_EXECUTOR_HOST_PORT}:8095"
     volumes:
-      - ./docker/mocks/course-service/mappings:/home/wiremock/mappings:ro
-
-  mock-code-executor:
-    image: wiremock/wiremock:3.13.1
-    command: ["--disable-banner"]
-    volumes:
-      - ./docker/mocks/code-executor/mappings:/home/wiremock/mappings:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /tmp:/tmp
 
   learning-service:
     build:
@@ -36,9 +36,7 @@ services:
     depends_on:
       learning-postgres:
         condition: service_healthy
-      mock-course-service:
-        condition: service_started
-      mock-code-executor:
+      code-executor-service:
         condition: service_started
     environment:
       SERVER_PORT: ${SERVER_PORT}
@@ -47,12 +45,13 @@ services:
       SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
       SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
       SECURITY_JWT_SECRET: ${SECURITY_JWT_SECRET}
-      CODERUNNER_COURSE_SERVICE_MOCK_ENABLED: ${CODERUNNER_COURSE_SERVICE_MOCK_ENABLED}
       CODERUNNER_COURSE_SERVICE_BASE_URL: ${CODERUNNER_COURSE_SERVICE_BASE_URL}
       CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER}
       CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY}
       CODERUNNER_EXECUTOR_SERVICE_BASE_URL: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL}
       CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN: ${CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "${LEARNING_SERVICE_HOST_PORT}:8090"
 

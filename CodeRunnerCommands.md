@@ -2,31 +2,27 @@
 
 ## 1) Что теперь запускается
 
-`docker-compose.yml` поднимает 4 контейнера:
+`docker-compose.yml` поднимает 3 контейнера:
 
 1. `learning-postgres` - PostgreSQL
-2. `mock-course-service` - mock CourseService (WireMock)
-3. `mock-code-executor` - mock CodeExecutorService (WireMock)
-4. `learning-service` - текущий микросервис
+2. `code-executor-service` - реальный CodeExecutorService
+3. `learning-service` - текущий микросервис
 
 По умолчанию наружу проброшены порты:
 
 - `8090` -> `learning-service`
+- `8095` -> `code-executor-service`
 - `6767` -> `learning-postgres`
-
-Mock-сервисы наружу не пробрасываются (работают только во внутренней docker-сети).
 
 Все переменные вынесены в `.env`.
 
-## 2) Важно про mock-контракты
+## 2) Важно про CourseService
 
-Текущий mock CourseService настроен на `taskId=2` (endpoint `/api/v1/internal/course-items/2/execution-package`).
+`LearningService` ходит в реальный `CourseService` по адресу из `.env`:
 
-Для сценария проверки кода используй:
+- `CODERUNNER_COURSE_SERVICE_BASE_URL=http://host.docker.internal:8082`
 
-- `courseId = 1001`
-- `moduleId = 2001`
-- `taskId = 2`
+Для сценария проверки используй реальные `courseId/moduleId/taskId`, которые существуют в CourseService.
 
 ## 3) Запуск одной кнопкой из IDE
 
@@ -52,8 +48,8 @@ docker compose logs learning-service --tail 100
 
 - `GET http://localhost:8090/actuator/health`
 - `docker compose ps`
-- `docker compose logs mock-course-service --tail 50`
-- `docker compose logs mock-code-executor --tail 50`
+- `docker compose logs learning-service --tail 50`
+- `docker compose logs code-executor-service --tail 50`
 
 ## 5) Сценарий проверки кода (через Postman)
 
@@ -141,25 +137,26 @@ docker compose exec learning-postgres psql -U postgres -d learning_service -c "s
 docker compose exec learning-postgres psql -U postgres -d learning_service -c "select submission_id,testkey,test_order,status,execution_time_ms,memory_kb from submission_test_results order by id desc limit 30;"
 ```
 
-## 7) Как перейти с mock на реальный CodeExecutorService
+## 7) Настройка адресов интеграций
 
 В `.env` поменяй:
 
+- `CODERUNNER_COURSE_SERVICE_BASE_URL`
+- `CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER`
+- `CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY`
 - `CODERUNNER_EXECUTOR_SERVICE_BASE_URL`
 - `CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN`
 
 Примеры:
 
-- executor в той же docker-сети: `http://code-executor:8080`
-- executor на хосте: `http://host.docker.internal:8083`
+- executor в той же docker-сети: `http://code-executor-service:8095`
+- executor на хосте: `http://host.docker.internal:8095`
 
 После изменения перезапусти:
 
 ```powershell
 docker compose up --build -d
 ```
-
-`mock-course-service` можно оставить, если CourseService пока не готов.
 
 ## 8) Остановка
 

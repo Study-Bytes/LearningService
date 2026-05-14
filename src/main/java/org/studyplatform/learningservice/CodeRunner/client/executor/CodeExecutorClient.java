@@ -20,12 +20,54 @@ public class CodeExecutorClient {
         try {
             return restClient.post()
                     .uri("/executions/batch")
-                    .header("Authorization", "Bearer " + properties.getAuthToken())
+                    .header("Authorization", bearerToken())
                     .body(request)
                     .retrieve()
                     .body(ExecutionResponse.class);
         } catch (RestClientException ex) {
             throw new IllegalStateException("CodeExecutorService request failed");
         }
+    }
+
+    public ExecutionResponse createSession(ExecutionSessionCreateRequest request) {
+        try {
+            return restClient.post()
+                    .uri("/executions")
+                    .header("Authorization", bearerToken())
+                    .body(request)
+                    .retrieve()
+                    .body(ExecutionResponse.class);
+        } catch (RestClientException ex) {
+            throw new IllegalStateException("CodeExecutorService request failed");
+        }
+    }
+
+    public ExecutionResponse.TestExecutionResult runTest(String sessionId, ExecutionTestRunRequest request) {
+        try {
+            return restClient.post()
+                    .uri("/executions/{id}/tests", sessionId)
+                    .header("Authorization", bearerToken())
+                    .body(request)
+                    .retrieve()
+                    .body(ExecutionResponse.TestExecutionResult.class);
+        } catch (RestClientException ex) {
+            throw new IllegalStateException("CodeExecutorService request failed");
+        }
+    }
+
+    public void cancelSession(String sessionId) {
+        try {
+            restClient.post()
+                    .uri("/executions/{id}/cancel", sessionId)
+                    .header("Authorization", bearerToken())
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientException ex) {
+            throw new IllegalStateException("CodeExecutorService request failed");
+        }
+    }
+
+    private String bearerToken() {
+        return "Bearer " + properties.getAuthToken();
     }
 }
