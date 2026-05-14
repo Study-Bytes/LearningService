@@ -1,0 +1,60 @@
+name: studybytes-learning-local
+
+services:
+  learning-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_HOST_PORT}:5432"
+    volumes:
+      - learning-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mock-course-service:
+    image: wiremock/wiremock:3.13.1
+    command: ["--disable-banner"]
+    volumes:
+      - ./docker/mocks/course-service/mappings:/home/wiremock/mappings:ro
+
+  mock-code-executor:
+    image: wiremock/wiremock:3.13.1
+    command: ["--disable-banner"]
+    volumes:
+      - ./docker/mocks/code-executor/mappings:/home/wiremock/mappings:ro
+
+  learning-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      learning-postgres:
+        condition: service_healthy
+      mock-course-service:
+        condition: service_started
+      mock-code-executor:
+        condition: service_started
+    environment:
+      SERVER_PORT: ${SERVER_PORT}
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      SPRING_JPA_HIBERNATE_DDL_AUTO: ${SPRING_JPA_HIBERNATE_DDL_AUTO}
+      SECURITY_JWT_SECRET: ${SECURITY_JWT_SECRET}
+      CODERUNNER_COURSE_SERVICE_MOCK_ENABLED: ${CODERUNNER_COURSE_SERVICE_MOCK_ENABLED}
+      CODERUNNER_COURSE_SERVICE_BASE_URL: ${CODERUNNER_COURSE_SERVICE_BASE_URL}
+      CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER}
+      CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY}
+      CODERUNNER_EXECUTOR_SERVICE_BASE_URL: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL}
+      CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN: ${CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN}
+    ports:
+      - "${LEARNING_SERVICE_HOST_PORT}:8090"
+
+volumes:
+  learning-postgres-data:

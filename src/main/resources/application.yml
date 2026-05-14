@@ -1,16 +1,16 @@
 server:
-  port: 8090
+  port: ${SERVER_PORT:8090}
 
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/learning_service
-    username: postgres
-    password: password
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:6767/learning_service}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD:password}
     driver-class-name: org.postgresql.Driver
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: update
+      ddl-auto: ${SPRING_JPA_HIBERNATE_DDL_AUTO:update}
     properties:
       hibernate:
         format_sql: true
@@ -18,6 +18,8 @@ spring:
           time_zone: UTC
         type:
           prefer_native_enum_types: true
+  flyway:
+    baseline-on-migrate: ${SPRING_FLYWAY_BASELINE_ON_MIGRATE:true}
 
 management:
   endpoints:
@@ -31,4 +33,14 @@ management:
 
 security:
   jwt:
-    secret: "change-this-secret-key-change-this-secret-key"
+    secret: ${SECURITY_JWT_SECRET:change-this-secret-key-change-this-secret-key}
+
+coderunner:
+  course-service:
+    base-url: ${CODERUNNER_COURSE_SERVICE_BASE_URL:http://localhost:8081}
+    internal-api-key-header: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER:X-Internal-API-Key}
+    internal-api-key: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY:dev-learning-service-internal-key}
+    mock-enabled: ${CODERUNNER_COURSE_SERVICE_MOCK_ENABLED:false}
+  executor-service:
+    base-url: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL:http://localhost:8083}
+    auth-token: ${CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN:dev-executor-service-token}
