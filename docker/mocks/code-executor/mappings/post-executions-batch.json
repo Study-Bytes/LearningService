@@ -1,0 +1,72 @@
+{
+  "priority": 1,
+  "request": {
+    "method": "POST",
+    "urlPath": "/executions/batch",
+    "headers": {
+      "Authorization": {
+        "equalTo": "Bearer dev-executor-service-token"
+      }
+    },
+    "bodyPatterns": [
+      {
+        "matchesJsonPath": "$.language"
+      },
+      {
+        "matchesJsonPath": "$.code"
+      },
+      {
+        "matchesJsonPath": "$.tests[?(@.id == 'open-1')]"
+      },
+      {
+        "matchesJsonPath": "$.tests[?(@.id == 'hidden-1')]"
+      }
+    ]
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "Content-Type": "application/json"
+    },
+    "jsonBody": {
+      "id": "exec-mock-0001",
+      "status": "FINISHED",
+      "language": "python",
+      "durationMs": 12,
+      "peakMemoryMb": 24,
+      "tests": [
+        {
+          "testId": "open-1",
+          "outcome": "OK",
+          "exitCode": 0,
+          "stdout": {
+            "data": "hello\n",
+            "truncated": false
+          },
+          "stderr": {
+            "data": "",
+            "truncated": false
+          },
+          "durationMs": 4,
+          "memoryMb": 16
+        },
+        {
+          "testId": "hidden-1",
+          "outcome": "OK",
+          "exitCode": 0,
+          "stdout": {
+            "data": "world\n",
+            "truncated": false
+          },
+          "stderr": {
+            "data": "",
+            "truncated": false
+          },
+          "durationMs": 5,
+          "memoryMb": 17
+        }
+      ],
+      "metadata": {}
+    }
+  }
+}
