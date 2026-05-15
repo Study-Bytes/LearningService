@@ -125,10 +125,8 @@ jobs:
           VPS_PORT: ${{ secrets.VPS_PORT }}
           VPS_USER: ${{ secrets.VPS_USER }}
           VPS_DEPLOY_BASE_PATH: ${{ secrets.VPS_DEPLOY_BASE_PATH }}
-          VPS_HEALTHCHECK_URL: ${{ secrets.VPS_HEALTHCHECK_URL }}
         run: |
           DEPLOY_SERVICE_DIR="learning-service"
-          HEALTHCHECK_URL="${VPS_HEALTHCHECK_URL:-http://127.0.0.1:8090/actuator/health}"
           ssh -i ~/.ssh/learning_service_deploy_key -p "$VPS_PORT" "$VPS_USER@$VPS_HOST" \
             "set -euo pipefail
              DEPLOY_PATH='${VPS_DEPLOY_BASE_PATH%/}/$DEPLOY_SERVICE_DIR'
@@ -148,7 +146,7 @@ jobs:
              docker compose up -d --build --no-deps learning-service
              docker compose ps
              for attempt in \$(seq 1 40); do
-               if curl -fsS '$HEALTHCHECK_URL'; then
+               if docker compose exec -T learning-service sh -lc 'wget -qO- http://127.0.0.1:8090/actuator/health >/dev/null'; then
                  exit 0
                fi
                echo \"Waiting for LearningService health check... attempt \$attempt/40\"
