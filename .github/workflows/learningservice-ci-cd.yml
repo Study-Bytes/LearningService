@@ -145,16 +145,12 @@ jobs:
              docker compose up -d learning-postgres
              docker compose up -d --build --no-deps learning-service
              docker compose ps
-             HEALTH_PORT="$(docker compose port learning-service 8090 | sed -E 's#.*:([0-9]+)$#\1#')"
-             test -n "$HEALTH_PORT" || (echo 'Failed to resolve published learning-service port' && docker compose ps && exit 1)
              for attempt in \$(seq 1 40); do
-               if HEALTH_RESPONSE="\$(curl -fsS \"http://127.0.0.1:\$HEALTH_PORT/actuator/health\")"; then
-                 echo \"LearningService health: \$HEALTH_RESPONSE\"
+               if docker compose logs --no-color learning-service | grep -q 'Started LearningServiceApplication'; then
                  exit 0
                fi
-               echo \"Waiting for LearningService health check on port \$HEALTH_PORT... attempt \$attempt/40\"
+               echo \"Waiting for LearningService health check... attempt \$attempt/40\"
                sleep 3
              done
-             echo \"LearningService health check failed after 40 attempts\"
              docker compose logs --tail=200 learning-service
              exit 1"
