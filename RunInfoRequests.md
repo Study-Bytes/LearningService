@@ -1,23 +1,24 @@
-# RunInfoRequests: сценарий прогона кода через LearningService
+# RunInfoRequests: сценарий прогона кода через LearningService (JWT)
 
-Ниже полный ход запросов в сценарии:
+Ниже полный поток запросов в сценарии, где фронт отправляет JWT access token.
 
-- фронт отправляет решение в `LearningService`,
-- `LearningService` получает execution package из `CourseService`,
-- `LearningService` отправляет в `CodeExecutorService` либо `batch`, либо `one by one`,
-- `LearningService` сравнивает фактический вывод с `expectedOutput`,
-- фронт получает финальный вердикт.
+Ключевое изменение:
+
+- фронт больше не передает `user_id` отдельным header;
+- `LearningService` берет `userId` из JWT claim `sub`;
+- JWT валидируется по JWKS UserService.
 
 ## 0) Предусловия (данные прогресса)
 
 Перед submit у пользователя должна быть запись `task_progress` для `userId + taskId`.
+
 Обычно это создается заранее:
 
 1. `POST /api/v1/learning/course-enrollments`
 2. `POST /api/v1/learning/module-progress`
 3. `POST /api/v1/learning/task-progress`
 
-Если `task_progress` нет, submit вернет ошибку `404 Task progress not found for user and task`.
+Если `task_progress` нет, submit вернет `404 Task progress not found for user and task`.
 
 ---
 
@@ -29,7 +30,7 @@
 - URL: `http://localhost:8090/api/v1/learning/tasks/{taskId}/submissions`
 - Headers:
   - `Content-Type: application/json`
-  - `user_id: <long>`
+  - `Authorization: Bearer <access_token>`
 
 ### Body (пример)
 
@@ -44,19 +45,45 @@
 
 ### Поля запроса
 
-- `taskId` (`Long`) — id задачи.
-- `language` (`String`) — язык (например `python`).
-- `sourceCode` (`String`) — код пользователя.
-- `executionMode` (`Enum`) — режим прогона:
+- `taskId` (`Long`) - id задачи.
+- `language` (`String`) - язык (например `python`).
+- `sourceCode` (`String`) - код пользователя.
+- `executionMode` (`Enum`) - режим прогона:
   - `BATCH` (по умолчанию, если поле не передано),
   - `ONE_BY_ONE`.
-- `user_id` header (`Long`) — id пользователя.
+
+`access_token` должен содержать минимум:
+
+- `iss` (issuer),
+- `aud` (audience),
+- `exp` (срок жизни),
+- `sub` (id пользователя, строкой; например `"123"`).
 
 ---
 
-## 2) LearningService -> CourseService: запрос execution package
+## 2) Внутри LearningService: валидация JWT и извлечение userId
 
-`LearningService` запрашивает полный пакет исполнения по `taskId`.
+`LearningService` работает как OAuth2 Resource Server и делает следующее:
+
+1. Проверяет подпись JWT (RS256) по JWKS UserService.
+2. Проверяет claims:
+   - `iss`
+   - `aud`
+   - `exp`
+3. Извлекает `sub`.
+4. Парсит `sub` в `Long userId`.
+
+Если токен невалиден или `sub` нечисловой, возвращается `401 Unauthorized`.
+
+JWKS endpoint UserService:
+
+- `GET /api/v1/auth/.well-known/jwks.json`
+
+---
+
+## 3) LearningService -> CourseService: запрос execution package
+
+`LearningService` запрашивает execution package по `taskId`.
 
 ### HTTP (внутренний)
 
@@ -65,86 +92,24 @@
 - Headers:
   - `{CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER}: {CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY}`
 
-### Response Body (пример)
+### Что используется из ответа
 
-```json
-{
-  "itemId": 2,
-  "moduleId": 2001,
-  "courseId": 1001,
-  "itemType": "CODING",
-  "title": "Task 2",
-  "language": "python",
-  "starterCode": "",
-  "limits": {
-    "timeLimitMs": 1500,
-    "memoryLimitMb": 256,
-    "outputLimitKb": 256
-  },
-  "executionPolicy": {
-    "networkDisabled": true,
-    "readOnlyFs": true
-  },
-  "evaluationPolicy": {
-    "comparisonMode": "EXACT",
-    "normalizeLineEndings": true,
-    "trimTrailingWhitespaces": true
-  },
-  "tests": [
-    {
-      "testKey": "open-1",
-      "visibility": "OPEN",
-      "inputData": "hello\n",
-      "expectedOutput": "hello\n",
-      "orderIndex": 1
-    },
-    {
-      "testKey": "hidden-1",
-      "visibility": "HIDDEN",
-      "inputData": "world\n",
-      "expectedOutput": "world\n",
-      "orderIndex": 2
-    }
-  ]
-}
-```
+- `limits`
+- `executionPolicy`
+- `evaluationPolicy`
+- `tests[]` (`testKey`, `inputData`, `expectedOutput`, `orderIndex`)
 
-### Какие поля используются из ответа CourseService
-
-- `limits`:
-  - `timeLimitMs`
-  - `memoryLimitMb`
-  - `outputLimitKb`
-- `executionPolicy`:
-  - `networkDisabled`
-  - `readOnlyFs`
-- `evaluationPolicy`:
-  - `comparisonMode`
-  - `normalizeLineEndings`
-  - `trimTrailingWhitespaces`
-- `tests[]`:
-  - `testKey`
-  - `inputData`
-  - `expectedOutput`
-  - `orderIndex`
-
-Также валидируются:
+Также валидируется:
 
 - `itemId == taskId`
 - `itemType == CODING`
-- при наличии в ответе:
-  - `courseId` должен совпадать с `task_progress.courseId`
-  - `moduleId` должен совпадать с `task_progress.moduleId`
+- `courseId` и `moduleId` (если переданы CourseService) совпадают с `task_progress`.
 
 ---
 
-## 3) LearningService -> CodeExecutorService: запуск (по executionMode)
+## 4) LearningService -> CodeExecutorService: запуск (по executionMode)
 
-На основе execution package и `sourceCode` формируется вызов в executor.
-
-### 3.1) Режим `BATCH`
-
-### HTTP (внутренний)
+### 4.1 Режим `BATCH`
 
 - Method: `POST`
 - URL: `{CODERUNNER_EXECUTOR_SERVICE_BASE_URL}/executions/batch`
@@ -152,163 +117,63 @@
   - `Authorization: Bearer {CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN}`
   - `Content-Type: application/json`
 
-### Body (структура)
+`LearningService` маппит:
 
-```json
-{
-  "language": "python",
-  "code": "string",
-  "tests": [
-    {
-      "id": "testKey",
-      "input": "inputData",
-      "timeoutMs": null
-    }
-  ],
-  "limits": {
-    "timeLimitMs": 1500,
-    "memoryLimitMb": 256,
-    "outputLimitKb": 256
-  },
-  "executionPolicy": {
-    "networkDisabled": true,
-    "readOnlyFs": true
-  },
-  "metadata": {
-    "taskId": "2"
-  }
-}
-```
-
-### Как мапятся поля
-
-- `code` <- `sourceCode` от фронта
-- `tests[].id` <- `CourseService.tests[].testKey`
-- `tests[].input` <- `CourseService.tests[].inputData`
+- `code` <- `sourceCode`
+- `tests[].id` <- `testKey`
+- `tests[].input` <- `inputData`
 - `limits` <- `CourseService.limits`
 - `executionPolicy` <- `CourseService.executionPolicy`
 
-### 3.2) Режим `ONE_BY_ONE`
+### 4.2 Режим `ONE_BY_ONE`
 
-#### Шаг A: создать сессию
-
-- Method: `POST`
-- URL: `{CODERUNNER_EXECUTOR_SERVICE_BASE_URL}/executions`
-- Headers:
-  - `Authorization: Bearer {CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN}`
-  - `Content-Type: application/json`
-
-Body:
-
-```json
-{
-  "language": "python",
-  "code": "string",
-  "limits": {
-    "timeLimitMs": 1500,
-    "memoryLimitMb": 256,
-    "outputLimitKb": 256
-  },
-  "executionPolicy": {
-    "networkDisabled": true,
-    "readOnlyFs": true
-  },
-  "metadata": {
-    "taskId": "2"
-  }
-}
-```
-
-#### Шаг B: прогнать каждый тест отдельно
-
-Для каждого теста из `CourseService.tests[]`:
-
-- Method: `POST`
-- URL: `{CODERUNNER_EXECUTOR_SERVICE_BASE_URL}/executions/{sessionId}/tests`
-
-Body:
-
-```json
-{
-  "id": "testKey",
-  "input": "inputData",
-  "timeoutMs": null
-}
-```
-
-#### Шаг C: закрыть сессию
-
-- Method: `POST`
-- URL: `{CODERUNNER_EXECUTOR_SERVICE_BASE_URL}/executions/{sessionId}/cancel`
+1. `POST /executions` (создание сессии)
+2. `POST /executions/{sessionId}/tests` для каждого теста
+3. `POST /executions/{sessionId}/cancel` (закрытие сессии)
 
 ---
 
-## 4) CodeExecutorService -> LearningService: результаты выполнения
+## 5) CodeExecutorService -> LearningService: результаты выполнения
 
-### Response (структура)
+`LearningService` получает execution response с результатами тестов:
 
-```json
-{
-  "id": "uuid",
-  "status": "FINISHED",
-  "language": "python",
-  "durationMs": 12,
-  "peakMemoryMb": 24,
-  "tests": [
-    {
-      "testId": "open-1",
-      "outcome": "OK",
-      "exitCode": 0,
-      "stdout": { "data": "hello\n", "truncated": false },
-      "stderr": { "data": "", "truncated": false },
-      "durationMs": 4,
-      "memoryMb": 16
-    }
-  ],
-  "metadata": {
-    "taskId": "2"
-  }
-}
-```
-
-`id` из ответа сохраняется в `executorRequestId`.
+- `id` (сохраняется как `executorRequestId`)
+- `status`
+- `tests[]` (`testId`, `outcome`, `stdout`, `stderr`, `durationMs`, `memoryMb`)
 
 ---
 
-## 5) Внутри LearningService: сравнение с правильными ответами
+## 6) Внутри LearningService: сравнение и расчеты
 
-Для каждого теста из `CourseService.tests[]`:
+Для каждого теста:
 
-1. Ищется результат executor по ключу:
-   - `test.testKey == execution.tests[].testId`
+1. Находит результат executor по `testId`.
 2. Если `outcome == OK`:
-   - сравнивается `expectedOutput` (из CourseService) и `stdout.data` (из CodeExecutor),
-   - перед сравнением применяются правила из `evaluationPolicy`:
-     - `normalizeLineEndings`
-     - `trimTrailingWhitespaces`
-3. Если `outcome != OK`:
-   - тест помечается как `ERROR` с учетом типа ошибки (`RUNTIME_ERROR`, `TIMEOUT`, `MEMORY_LIMIT`, `INTERNAL_ERROR`).
+   - сравнивает `stdout.data` с `expectedOutput`;
+   - применяет `evaluationPolicy` (`normalizeLineEndings`, `trimTrailingWhitespaces`).
+3. Если `outcome != OK`, помечает как `ERROR` с соответствующим типом.
 
-### Статусы по тестам
-
-- `PASSED` — `outcome=OK` и вывод совпал.
-- `FAILED` — `outcome=OK`, но вывод не совпал.
-- `ERROR` — ошибка выполнения.
-- `SKIPPED` — нет результата по тесту.
-
-### Финальные вычисления
+Финально считаются:
 
 - `passedTestsCount`
 - `totalTestsCount`
-- `score = round(passedTestsCount * 100 / totalTestsCount)`
-- `verdict`:
-  - `OK` / `WA` / `RE` / `TL` / `ML` / `PE`
+- `score`
+- `verdict` (`OK/WA/RE/TL/ML/PE`)
+
+Далее обновляются:
+
+- `task_submissions`
+- `submission_test_results`
+- `task_progress`
+- агрегаты `module_progress` и `course_enrollments`.
+
+`userId`, полученный из JWT `sub`, используется во всех этих обновлениях и сохраняется в полях `user_id` соответствующих таблиц.
 
 ---
 
-## 6) LearningService -> Фронт: финальный ответ submit
+## 7) LearningService -> Фронт: финальный ответ submit
 
-### Response (пример)
+Пример:
 
 ```json
 {
@@ -326,11 +191,12 @@ Body:
 
 ## Краткая схема потока
 
-1. Front -> LearningService: `POST /api/v1/learning/tasks/{taskId}/submissions`
-2. LearningService -> CourseService: `GET /api/v1/internal/course-items/{itemId}/execution-package`
-3. LearningService -> CodeExecutorService:
+1. Front -> LearningService: `POST /api/v1/learning/tasks/{taskId}/submissions` + `Authorization: Bearer <access_token>`
+2. LearningService -> UserService JWKS: валидация подписи и claims (`iss/aud/exp`)
+3. LearningService: `userId = Long.parseLong(jwt.sub)`
+4. LearningService -> CourseService: `GET /api/v1/internal/course-items/{itemId}/execution-package`
+5. LearningService -> CodeExecutorService:
    - `BATCH`: `POST /executions/batch`
    - `ONE_BY_ONE`: `POST /executions` -> `POST /executions/{id}/tests` -> `POST /executions/{id}/cancel`
-4. CodeExecutorService -> LearningService: `ExecutionResponse (tests outcomes/stdout/stderr)`
-5. LearningService: сравнение с `expectedOutput` + расчет score/verdict
-6. LearningService -> Front: `SubmissionCreateResponse`
+6. LearningService: сравнение результата с expected output + расчет score/verdict
+7. LearningService -> Front: `SubmissionCreateResponse`
