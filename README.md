@@ -133,7 +133,9 @@ For `POST /tasks/{taskId}/submissions`:
 4. Request execution package from CourseService:
    - `GET /api/v1/internal/course-items/{itemId}/execution-package`
    - header `X-Internal-API-Key` (configurable name/value).
-5. Validate package consistency (`itemId`, `courseId`, `moduleId`, `itemType=CODING`, tests not empty).
+   - forwards the incoming frontend `Authorization: Bearer <access_token>` header when present.
+5. Validate package consistency (`itemId`, `itemType=CODING`, tests not empty).
+   `courseId` and `moduleId` from CourseService are treated as authoritative and are synced into local `TaskProgress` when the local progress context is stale.
 6. Save `TaskSubmission` (`QUEUED` -> `RUNNING`).
 7. Send code to CodeExecutorService:
    - `BATCH`: `POST /executions/batch`
@@ -178,6 +180,13 @@ Current default path used by LearningService:
 
 ```http
 GET {courseServiceBaseUrl}/api/v1/internal/course-items/{itemId}/execution-package
+```
+
+Headers sent to CourseService:
+
+```http
+Authorization: Bearer <frontend_access_token>
+X-Internal-API-Key: <CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY>
 ```
 
 ### CodeExecutorService (required for code-runner scenario)
@@ -241,6 +250,10 @@ Notes:
 - `V3` creates/patches CodeRunner tables and backward-compatible columns.
 
 ## Local run
+
+For a complete empty-database Postman walkthrough from registration to code verdict checks, use:
+
+- [`POSTMAN_FULL_FLOW.md`](POSTMAN_FULL_FLOW.md)
 
 ## Option A: Docker Compose (recommended for integration scenario)
 

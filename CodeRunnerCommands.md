@@ -23,6 +23,8 @@
 - `CODERUNNER_COURSE_SERVICE_BASE_URL=http://host.docker.internal:8082`
 
 Для сценария проверки используй реальные `courseId/moduleId/taskId`, которые существуют в CourseService.
+При submit LearningService прокидывает входящий `Authorization: Bearer <access_token>` в CourseService internal request, а `courseId/moduleId` из CourseService execution package считает источником истины и синхронизирует в локальный `task_progress`.
+Полный сценарий проверки с пустыми БД, регистрацией пользователей и созданием coding task лежит в `POSTMAN_FULL_FLOW.md`.
 
 ## 3) Запуск одной кнопкой из IDE
 
@@ -59,8 +61,8 @@ docker compose logs learning-service --tail 100
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
   "status": "IN_PROGRESS",
   "progressPercent": 0.0,
   "completedTasksCount": 0,
@@ -73,9 +75,9 @@ docker compose logs learning-service --tail 100
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
-  "moduleId": 2001,
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
+  "moduleId": {{module_id}},
   "status": "IN_PROGRESS",
   "progressPercent": 0.0,
   "completedTasksCount": 0,
@@ -88,10 +90,10 @@ docker compose logs learning-service --tail 100
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
-  "moduleId": 2001,
-  "taskId": 2,
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
+  "moduleId": {{module_id}},
+  "taskId": {{task_id}},
   "status": "NOT_STARTED",
   "attemptsCount": 0,
   "bestScore": 0,
@@ -102,7 +104,7 @@ docker compose logs learning-service --tail 100
 
 ### 5.2 Отправить решение на проверку
 
-`POST http://localhost:8090/api/v1/learning/tasks/2/submissions`
+`POST http://localhost:8090/api/v1/learning/tasks/{{task_id}}/submissions`
 
 Headers:
 
@@ -113,9 +115,10 @@ Body:
 
 ```json
 {
-  "taskId": 2,
+  "taskId": {{task_id}},
   "language": "python",
-  "sourceCode": "print(input())"
+  "sourceCode": "import sys\nnums = list(map(int, sys.stdin.read().split()))\nprint(sum(nums))",
+  "executionMode": "BATCH"
 }
 ```
 
@@ -123,13 +126,25 @@ Body:
 
 - HTTP `201`
 - в ответе есть `submissionId`, `status`, `verdict`, `score`, `executorRequestId`
-- `userId` берется из JWT claim `sub` (например `sub: "101"`).
+- для корректного решения ожидается `verdict: "OK"` и `score: 100`
+- `userId` берется из JWT claim `sub`, поэтому `{{student_id}}` должен совпадать с `sub` в access token студента.
+
+Чтобы отдельно проверить `WA`, отправь заведомо неправильное решение:
+
+```json
+{
+  "taskId": {{task_id}},
+  "language": "python",
+  "sourceCode": "import sys\nprint(sys.stdin.read(), end='')",
+  "executionMode": "BATCH"
+}
+```
 
 ### 5.3 Проверить агрегаты прогресса
 
-- `GET http://localhost:8090/api/v1/learning/task-progress/101/1001/2001/2`
-- `GET http://localhost:8090/api/v1/learning/module-progress/101/1001/2001`
-- `GET http://localhost:8090/api/v1/learning/course-enrollments/101/1001`
+- `GET http://localhost:8090/api/v1/learning/task-progress/{{student_id}}/{{course_id}}/{{module_id}}/{{task_id}}`
+- `GET http://localhost:8090/api/v1/learning/module-progress/{{student_id}}/{{course_id}}/{{module_id}}`
+- `GET http://localhost:8090/api/v1/learning/course-enrollments/{{student_id}}/{{course_id}}`
 
 ## 6) Проверка данных в БД
 
@@ -147,6 +162,11 @@ docker compose exec learning-postgres psql -U postgres -d learning_service -c "s
 - `CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY`
 - `CODERUNNER_EXECUTOR_SERVICE_BASE_URL`
 - `CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN`
+
+Для CourseService internal API должны совпадать:
+
+- `CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY` в LearningService;
+- `COURSE_SERVICE_INTERNAL_API_KEY` в CourseService.
 
 Примеры:
 

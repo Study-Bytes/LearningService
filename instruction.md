@@ -7,6 +7,8 @@
 - `CodeExecutorService` добавлен как отдельный сервис в том же compose.
 - `LearningService` ходит в реальный `CourseService` по адресу:
   - `http://host.docker.internal:8082`
+- При submit `LearningService` прокидывает frontend `Authorization: Bearer <access_token>` в CourseService internal request.
+- Также отправляется internal API key из `CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY`; он должен совпадать с `COURSE_SERVICE_INTERNAL_API_KEY` в CourseService.
 - Для `CodeExecutorService` подключены:
   - `/var/run/docker.sock:/var/run/docker.sock` (чтобы он мог запускать контейнеры для прогона кода),
   - `/tmp:/tmp` (чтобы работали bind mount'ы временных файлов кода).
@@ -57,7 +59,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 ## 3) Postman: подготовить данные прогресса (обязательно)
 
 `LearningService` перед отправкой в executor ищет `task_progress`, `module_progress`, `course_enrollment`.
-Поэтому сначала создай их.
+Поэтому сначала создай их. Для полной проверки с пустыми БД, регистрацией пользователей, созданием курса, coding task и тестов используй `POSTMAN_FULL_FLOW.md`.
 
 ### 3.1 Create course enrollment
 
@@ -67,8 +69,8 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001
+  "userId": {{student_id}},
+  "courseId": {{course_id}}
 }
 ```
 
@@ -80,9 +82,9 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
-  "moduleId": 2001
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
+  "moduleId": {{module_id}}
 }
 ```
 
@@ -94,10 +96,10 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
-  "moduleId": 2001,
-  "taskId": 2
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
+  "moduleId": {{module_id}},
+  "taskId": {{task_id}}
 }
 ```
 
@@ -106,7 +108,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 ### Submit solution
 
 - Method: `POST`
-- URL: `http://localhost:8090/api/v1/learning/tasks/2/submissions`
+- URL: `http://localhost:8090/api/v1/learning/tasks/{{task_id}}/submissions`
 - Headers:
   - `Content-Type: application/json`
   - `Authorization: Bearer <access_token>`
@@ -114,9 +116,9 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 
 ```json
 {
-  "taskId": 2,
+  "taskId": {{task_id}},
   "language": "python",
-  "sourceCode": "import sys\nprint(sys.stdin.read(), end='')",
+  "sourceCode": "import sys\nnums = list(map(int, sys.stdin.read().split()))\nprint(sum(nums))",
   "executionMode": "BATCH"
 }
 ```
@@ -128,7 +130,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 3. Получает фактический stdout/stderr по тестам.
 4. Сравнивает с expected output и возвращает финальный вердикт.
 
-Важно: `taskId`, `courseId`, `moduleId` в примере должны соответствовать данным, которые реально есть в вашем `CourseService`.
+Важно: `taskId` должен соответствовать реальному item в `CourseService`. `courseId` и `moduleId` для сабмита берутся из CourseService execution package и синхронизируются в `task_progress`, если локальная запись была создана со старыми id.
 
 Пример успешного ответа (`201 Created`, поля могут отличаться по id):
 
@@ -141,6 +143,17 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
   "passedTestsCount": 2,
   "totalTestsCount": 2,
   "executorRequestId": "..."
+}
+```
+
+Для проверки негативного сценария `WA` можно отправить код, который просто возвращает входные данные:
+
+```json
+{
+  "taskId": {{task_id}},
+  "language": "python",
+  "sourceCode": "import sys\nprint(sys.stdin.read(), end='')",
+  "executionMode": "BATCH"
 }
 ```
 
