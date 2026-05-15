@@ -6,35 +6,10 @@
   <component name="ChangeListManager">
     <list default="true" id="eed1dec1-812c-447b-ab85-8412be42fd77" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/ProgressStatus.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/dto/ErrorResponse.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/exception/ConflictException.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/exception/GlobalExceptionHandler.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/common/exception/NotFoundException.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollment.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentController.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentCreateRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentRepository.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentResponse.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/courseenrollment/CourseEnrollmentUpdateRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgress.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressController.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressCreateRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressRepository.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressResponse.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/moduleprogress/ModuleProgressUpdateRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgress.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressController.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressCreateRequest.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressRepository.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressResponse.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressService.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/org/studyplatform/learningservice/taskprogress/TaskProgressUpdateRequest.java" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/target/classes/application.yml" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/application.yml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/classes/org/studyplatform/learningservice/taskprogress/TaskProgressRepository.class" beforeDir="false" afterPath="$PROJECT_DIR$/target/classes/org/studyplatform/learningservice/taskprogress/TaskProgressRepository.class" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/createdFiles.lst" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" beforeDir="false" afterPath="$PROJECT_DIR$/target/maven-status/maven-compiler-plugin/compile/default-compile/inputFiles.lst" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/tasks.txt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -42,7 +17,7 @@
     <option name="LAST_RESOLUTION" value="IGNORE" />
   </component>
   <component name="EmbeddingIndexingInfo">
-    <option name="cachedIndexableFilesCount" value="36" />
+    <option name="cachedIndexableFilesCount" value="65" />
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
@@ -74,6 +49,7 @@
   </component>
   <component name="PropertiesComponent"><![CDATA[{
   "keyToString": {
+    "Docker.docker-compose.yml: Compose Deployment.executor": "Run",
     "ModuleVcsDetector.initialDetectionPerformed": "true",
     "RunOnceActivity.MCP Project settings loaded": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
@@ -81,7 +57,7 @@
     "RunOnceActivity.git.unshallow": "true",
     "RunOnceActivity.typescript.service.memoryLimit.init": "true",
     "codeWithMe.voiceChat.enabledByDefault": "false",
-    "git-widget-placeholder": "12-task-add-local-docs-and-repository-hygiene",
+    "git-widget-placeholder": "31-task-add-summary-readme",
     "ignore.virus.scanning.warn.message": "true",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "C:/Users/Public/Enotich Enotov/Projects/StudyBytes/LearningService",
