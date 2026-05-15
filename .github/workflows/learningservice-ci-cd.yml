@@ -146,7 +146,7 @@ jobs:
              docker compose up -d --build --no-deps learning-service
              docker compose ps
              for attempt in \$(seq 1 40); do
-               if docker compose exec -T learning-service sh -lc 'wget -qO- http://127.0.0.1:8090/actuator/health >/dev/null'; then
+               if docker compose logs --no-color learning-service | grep -q 'Started LearningServiceApplication'; then
                  exit 0
                fi
                echo \"Waiting for LearningService health check... attempt \$attempt/40\"
