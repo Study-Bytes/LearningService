@@ -107,7 +107,7 @@ docker compose logs learning-service --tail 100
 Headers:
 
 - `Content-Type: application/json`
-- `user_id: 101`
+- `Authorization: Bearer <access_token>`
 
 Body:
 
@@ -123,6 +123,7 @@ Body:
 
 - HTTP `201`
 - в ответе есть `submissionId`, `status`, `verdict`, `score`, `executorRequestId`
+- `userId` берется из JWT claim `sub` (например `sub: "101"`).
 
 ### 5.3 Проверить агрегаты прогресса
 

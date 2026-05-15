@@ -109,7 +109,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 - URL: `http://localhost:8090/api/v1/learning/tasks/2/submissions`
 - Headers:
   - `Content-Type: application/json`
-  - `user_id: 101`
+  - `Authorization: Bearer <access_token>`
 - Body:
 
 ```json

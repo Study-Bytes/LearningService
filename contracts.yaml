@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: LearningService API Contracts
   version: 1.0.0
-  description: Contracts for course/module/task progress endpoints.
+  description: Contracts for progress and CodeRunner submission endpoints.
 servers:
   - url: http://localhost:8090
 paths:
@@ -210,7 +210,8 @@ paths:
       operationId: createTaskSubmission
       parameters:
         - $ref: '#/components/parameters/TaskId'
-        - $ref: '#/components/parameters/UserIdHeader'
+      security:
+        - BearerAuth: []
       requestBody:
         required: true
         content:
@@ -241,12 +242,20 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SubmissionCreateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
         '400':
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
 
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
   parameters:
     UserId:
       name: userId
@@ -280,16 +289,14 @@ components:
         type: integer
         format: int64
         minimum: 1
-    UserIdHeader:
-      name: user_id
-      in: header
-      required: true
-      schema:
-        type: integer
-        format: int64
-        minimum: 1
 
   responses:
+    Unauthorized:
+      description: Missing or invalid JWT access token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     BadRequest:
       description: Validation or request format error
       content:

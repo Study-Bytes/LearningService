@@ -22,6 +22,7 @@ It does **not** own course structure or test authoring data. That belongs to Cou
 - Spring Data JPA
 - Flyway
 - Spring Validation
+- Spring Security OAuth2 Resource Server (JWT + JWKS)
 
 ## Responsibility
 
@@ -87,7 +88,7 @@ POST /tasks/{taskId}/submissions
 Required header:
 
 ```http
-user_id: <positive long>
+Authorization: Bearer <access_token>
 ```
 
 Request body:
@@ -126,24 +127,44 @@ Response (`201 Created`):
 
 For `POST /tasks/{taskId}/submissions`:
 
-1. Load existing `TaskProgress` by `user_id + taskId`.
-2. Request execution package from CourseService:
+1. Validate JWT access token from `Authorization: Bearer <access_token>` via UserService JWKS.
+2. Extract `userId` from JWT claim `sub`.
+3. Load existing `TaskProgress` by `userId + taskId`.
+4. Request execution package from CourseService:
    - `GET /api/v1/internal/course-items/{itemId}/execution-package`
    - header `X-Internal-API-Key` (configurable name/value).
-3. Validate package consistency (`itemId`, `courseId`, `moduleId`, `itemType=CODING`, tests not empty).
-4. Save `TaskSubmission` (`QUEUED` -> `RUNNING`).
-5. Send code to CodeExecutorService:
+5. Validate package consistency (`itemId`, `courseId`, `moduleId`, `itemType=CODING`, tests not empty).
+6. Save `TaskSubmission` (`QUEUED` -> `RUNNING`).
+7. Send code to CodeExecutorService:
    - `BATCH`: `POST /executions/batch`
    - `ONE_BY_ONE`: session-based flow:
      - `POST /executions`
      - `POST /executions/{id}/tests` for each test
      - `POST /executions/{id}/cancel` for cleanup
-6. Compare outputs in LearningService using `evaluationPolicy` from CourseService package.
-7. Save `SubmissionTestResult` rows.
-8. Compute score/verdict and finish submission.
-9. Update `TaskProgress`, then recalculate `ModuleProgress` and `CourseEnrollment`.
+8. Compare outputs in LearningService using `evaluationPolicy` from CourseService package.
+9. Save `SubmissionTestResult` rows.
+10. Compute score/verdict and finish submission.
+11. Update `TaskProgress`, then recalculate `ModuleProgress` and `CourseEnrollment`.
 
 ## External integrations
+
+### UserService (JWT validation source of truth)
+
+LearningService validates frontend access tokens as an OAuth2 Resource Server.
+
+JWT expectations:
+
+- signature: `RS256`
+- `iss`: configured issuer
+- `aud`: must include configured audience
+- `exp`: must be valid
+- `sub`: parsed as numeric `userId` for CodeRunner flow
+
+Configured by:
+
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI`
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI`
+- `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES`
 
 ### CourseService (required)
 
@@ -181,7 +202,9 @@ SPRING_DATASOURCE_USERNAME
 SPRING_DATASOURCE_PASSWORD
 SPRING_JPA_HIBERNATE_DDL_AUTO
 SPRING_FLYWAY_BASELINE_ON_MIGRATE
-SECURITY_JWT_SECRET
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_ISSUER_URI
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI
+SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_AUDIENCES
 CODERUNNER_COURSE_SERVICE_BASE_URL
 CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER
 CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY
@@ -231,7 +254,8 @@ Prerequisites:
 
 - Docker Desktop running;
 - repository `CodeExecutorService` located at `../CodeExecutorService` relative to this project;
-- CourseService running and reachable by `CODERUNNER_COURSE_SERVICE_BASE_URL`.
+- CourseService running and reachable by `CODERUNNER_COURSE_SERVICE_BASE_URL`;
+- UserService running and reachable by `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` for JWT verification.
 
 Start:
 
@@ -297,7 +321,8 @@ mvn test
    - `POST /api/v1/learning/task-progress`
 2. Submit code:
    - `POST /api/v1/learning/tasks/{taskId}/submissions`
-   - with header `user_id`.
+   - with header `Authorization: Bearer <access_token>` where JWT `sub` is numeric user id.
+   - token must pass `iss`, `aud`, `exp` validation.
 3. Verify aggregates:
    - `GET /task-progress/{userId}/{courseId}/{moduleId}/{taskId}`
    - `GET /module-progress/{userId}/{courseId}/{moduleId}`
@@ -325,6 +350,7 @@ Global error payload:
 
 Common statuses:
 
+- `401` missing/invalid JWT for protected endpoints
 - `400` validation/request format errors
 - `404` entity not found
 - `409` unique conflict on create
