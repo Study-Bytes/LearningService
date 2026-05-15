@@ -104,8 +104,8 @@ Base URL:
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
   "status": "IN_PROGRESS",
   "progressPercent": 10.5,
   "completedTasksCount": 1,
@@ -117,7 +117,7 @@ Base URL:
 ```
 
 ### PUT update
-`PUT /course-enrollments/101/1001`
+`PUT /course-enrollments/{{student_id}}/{{course_id}}`
 
 ```json
 {
@@ -132,7 +132,7 @@ Base URL:
 ```
 
 ### GET by `user_id + course_id`
-`GET /course-enrollments/101/1001`
+`GET /course-enrollments/{{student_id}}/{{course_id}}`
 
 ---
 
@@ -143,9 +143,9 @@ Base URL:
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
-  "moduleId": 2001,
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
+  "moduleId": {{module_id}},
   "status": "IN_PROGRESS",
   "progressPercent": 25.0,
   "completedTasksCount": 1,
@@ -157,7 +157,7 @@ Base URL:
 ```
 
 ### PUT update
-`PUT /module-progress/101/1001/2001`
+`PUT /module-progress/{{student_id}}/{{course_id}}/{{module_id}}`
 
 ```json
 {
@@ -172,7 +172,7 @@ Base URL:
 ```
 
 ### GET by `user_id + course_id + module_id`
-`GET /module-progress/101/1001/2001`
+`GET /module-progress/{{student_id}}/{{course_id}}/{{module_id}}`
 
 ---
 
@@ -183,10 +183,10 @@ Base URL:
 
 ```json
 {
-  "userId": 101,
-  "courseId": 1001,
-  "moduleId": 2001,
-  "taskId": 3001,
+  "userId": {{student_id}},
+  "courseId": {{course_id}},
+  "moduleId": {{module_id}},
+  "taskId": {{task_id}},
   "status": "IN_PROGRESS",
   "attemptsCount": 1,
   "bestScore": 40,
@@ -200,7 +200,7 @@ Base URL:
 ```
 
 ### PUT update
-`PUT /task-progress/101/1001/2001/3001`
+`PUT /task-progress/{{student_id}}/{{course_id}}/{{module_id}}/{{task_id}}`
 
 ```json
 {
@@ -217,7 +217,7 @@ Base URL:
 ```
 
 ### GET by `user_id + course_id + module_id + task_id`
-`GET /task-progress/101/1001/2001/3001`
+`GET /task-progress/{{student_id}}/{{course_id}}/{{module_id}}/{{task_id}}`
 
 ---
 

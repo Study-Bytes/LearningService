@@ -9,7 +9,7 @@ public class CourseServiceProperties {
 
     private String baseUrl = "http://localhost:8082";
     private String internalApiKeyHeader = "X-Internal-API-Key";
-    private String internalApiKey = "dev-learning-service-internal-key";
+    private String internalApiKey = "dev-course-service-internal-key";
 
     public String getBaseUrl() {
         return baseUrl;

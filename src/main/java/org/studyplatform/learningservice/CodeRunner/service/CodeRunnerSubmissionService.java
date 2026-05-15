@@ -74,16 +74,23 @@ public class CodeRunnerSubmissionService {
     }
 
     @Transactional
-    public SubmissionCreateResponse submit(Long userId, Long taskId, @Valid SubmissionCreateRequest request) {
+    public SubmissionCreateResponse submit(
+            Long userId,
+            Long taskId,
+            String authorizationHeader,
+            @Valid SubmissionCreateRequest request
+    ) {
         TaskProgress taskProgress = taskProgressRepository
                 .findByUserIdAndTaskId(userId, taskId)
                 .orElseThrow(() -> new NotFoundException("Task progress not found for user and task"));
 
-        Long courseId = taskProgress.getCourseId();
-        Long moduleId = taskProgress.getModuleId();
+        CourseItemExecutionPackage executionPackage =
+                courseExecutionPackageProvider.getExecutionPackage(taskId, authorizationHeader);
+        validateExecutionPackage(taskId, executionPackage);
 
-        CourseItemExecutionPackage executionPackage = courseExecutionPackageProvider.getExecutionPackage(taskId);
-        validateExecutionPackage(taskId, courseId, moduleId, executionPackage);
+        Long courseId = resolveAuthoritativeId(taskProgress.getCourseId(), executionPackage.courseId());
+        Long moduleId = resolveAuthoritativeId(taskProgress.getModuleId(), executionPackage.moduleId());
+        syncTaskProgressCourseContext(taskProgress, courseId, moduleId);
 
         int submissionNumber = nextSubmissionNumber(userId, taskId);
 
@@ -292,8 +299,6 @@ public class CodeRunnerSubmissionService {
 
     private void validateExecutionPackage(
             Long taskId,
-            Long expectedCourseId,
-            Long expectedModuleId,
             CourseItemExecutionPackage executionPackage
     ) {
         if (executionPackage == null) {
@@ -305,14 +310,21 @@ public class CodeRunnerSubmissionService {
         if (!"CODING".equalsIgnoreCase(nullSafe(executionPackage.itemType()))) {
             throw new IllegalStateException("Course item is not CODING");
         }
-        if (executionPackage.courseId() != null && !Objects.equals(executionPackage.courseId(), expectedCourseId)) {
-            throw new IllegalStateException("CourseService returned mismatched courseId");
-        }
-        if (executionPackage.moduleId() != null && !Objects.equals(executionPackage.moduleId(), expectedModuleId)) {
-            throw new IllegalStateException("CourseService returned mismatched moduleId");
-        }
         if (executionPackage.tests() == null || executionPackage.tests().isEmpty()) {
             throw new IllegalStateException("Execution package has no tests");
+        }
+    }
+
+    private Long resolveAuthoritativeId(Long currentId, Long courseServiceId) {
+        return courseServiceId == null ? currentId : courseServiceId;
+    }
+
+    private void syncTaskProgressCourseContext(TaskProgress taskProgress, Long courseId, Long moduleId) {
+        if (!Objects.equals(taskProgress.getCourseId(), courseId)) {
+            taskProgress.setCourseId(courseId);
+        }
+        if (!Objects.equals(taskProgress.getModuleId(), moduleId)) {
+            taskProgress.setModuleId(moduleId);
         }
     }
 
