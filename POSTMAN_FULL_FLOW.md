@@ -1,19 +1,19 @@
-# Full Postman Check: UserService -> CourseService -> LearningService -> CodeExecutorService
+﻿# Full Postman Check: UserService -> CourseService -> LearningService -> CodeExecutorService
 
 This scenario assumes empty local databases and all services running:
 
 - UserService: `http://localhost:8081`
 - CourseService: `http://localhost:8082`
-- LearningService: `http://localhost:8090`
-- CodeExecutorService: `http://localhost:8095`
+- LearningService: `http://localhost:8083`
+- CodeExecutorService: `http://localhost:8084`
 
 Use a Postman environment with these variables:
 
 ```text
 user_base=http://localhost:8081
 course_base=http://localhost:8082
-learning_base=http://localhost:8090
-executor_base=http://localhost:8095
+learning_base=http://localhost:8083
+executor_base=http://localhost:8084
 teacher_email=teacher@example.com
 student_email=student@example.com
 password=strong-password

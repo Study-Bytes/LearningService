@@ -1,9 +1,9 @@
-# Как поднять `LearningService` + `CodeExecutorService` в Docker и проверить через Postman
+﻿# Как поднять `LearningService` + `CodeExecutorService` в Docker и проверить через Postman
 
 ## 1) Что уже настроено в проекте
 
 - `LearningService` в `docker-compose.yml` ходит в реальный `CodeExecutorService` по адресу:
-  - `http://code-executor-service:8095`
+  - `http://code-executor-service:8084`
 - `CodeExecutorService` добавлен как отдельный сервис в том же compose.
 - `LearningService` ходит в реальный `CourseService` по адресу:
   - `http://host.docker.internal:8082`
@@ -38,8 +38,8 @@ docker compose logs -f learning-service
 
 Порты с хоста:
 
-- `LearningService`: `http://localhost:8090`
-- `CodeExecutorService`: `http://localhost:8095`
+- `LearningService`: `http://localhost:8083`
+- `CodeExecutorService`: `http://localhost:8084`
 
 ### Опционально: поднять только `CodeExecutorService` отдельно (из его папки)
 
@@ -53,7 +53,7 @@ D:\Hw\StudyBytes\CodeExecutorService
 
 ```powershell
 docker build -t studybytes/code-executor-service:local .
-docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=8095 -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp studybytes/code-executor-service:local
+docker run -d --name code-executor-service-local -p 8084:8084 -e SERVER_PORT=8084 -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp studybytes/code-executor-service:local
 ```
 
 ## 3) Postman: подготовить данные прогресса (обязательно)
@@ -64,7 +64,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 ### 3.1 Create course enrollment
 
 - Method: `POST`
-- URL: `http://localhost:8090/api/v1/learning/course-enrollments`
+- URL: `http://localhost:8083/api/v1/learning/course-enrollments`
 - Body (raw JSON):
 
 ```json
@@ -77,7 +77,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 ### 3.2 Create module progress
 
 - Method: `POST`
-- URL: `http://localhost:8090/api/v1/learning/module-progress`
+- URL: `http://localhost:8083/api/v1/learning/module-progress`
 - Body:
 
 ```json
@@ -91,7 +91,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 ### 3.3 Create task progress
 
 - Method: `POST`
-- URL: `http://localhost:8090/api/v1/learning/task-progress`
+- URL: `http://localhost:8083/api/v1/learning/task-progress`
 - Body:
 
 ```json
@@ -108,7 +108,7 @@ docker run -d --name code-executor-service-local -p 8095:8095 -e SERVER_PORT=809
 ### Submit solution
 
 - Method: `POST`
-- URL: `http://localhost:8090/api/v1/learning/tasks/{{task_id}}/submissions`
+- URL: `http://localhost:8083/api/v1/learning/tasks/{{task_id}}/submissions`
 - Headers:
   - `Content-Type: application/json`
   - `Authorization: Bearer <access_token>`
