@@ -16,6 +16,8 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+    networks:
+      - course_db_net
 
   code-executor-service:
     build:
@@ -28,6 +30,8 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp:/tmp
+    networks:
+      - course_backend_net
 
   learning-service:
     build:
@@ -55,7 +59,20 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${LEARNING_SERVICE_HOST_PORT}:8083"
+      # Temporary localhost-only host access for VPS Nginx until BFF/reverse proxy is ready.
+      - "127.0.0.1:${COURSE_SERVICE_PORT:-8083}:8083"
+    networks:
+      - course_backend_net
+      - course_db_net
+
+networks:
+  course_backend_net:
+    name: ${COURSE_BACKEND_NETWORK:-studybytes_backend_net}
+    external: true
+  course_db_net:
+    name: ${COURSE_DB_NETWORK:-course_db_net}
+    driver: bridge
+    internal: true
 
 volumes:
   learning-postgres-data:
