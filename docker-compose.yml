@@ -61,7 +61,7 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       # Temporary localhost-only host access for VPS Nginx until BFF/reverse proxy is ready.
-      - "127.0.0.1:${COURSE_SERVICE_PORT:-8083}:8083"
+      - "127.0.0.1:${LEARNING_SERVICE_PORT:-8083}:8083"
     networks:
       - course_backend_net
       - course_db_net
