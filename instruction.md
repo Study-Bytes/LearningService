@@ -4,9 +4,9 @@
 
 - `LearningService` в `docker-compose.yml` ходит в реальный `CodeExecutorService` по адресу:
   - `http://code-executor-service:8084`
-- `CodeExecutorService` добавлен как отдельный сервис в том же compose.
+- `CodeExecutorService` поднимается отдельно из своего репозитория (`../CodeExecutorService`) своим `docker-compose.yml`.
 - `LearningService` ходит в реальный `CourseService` по адресу:
-  - `http://host.docker.internal:8082`
+  - `http://course-service:8082`
 - При submit `LearningService` прокидывает frontend `Authorization: Bearer <access_token>` в CourseService internal request.
 - Также отправляется internal API key из `CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY`; он должен совпадать с `COURSE_SERVICE_INTERNAL_API_KEY` в CourseService.
 - Для `CodeExecutorService` подключены:
@@ -15,15 +15,18 @@
 
 ## 2) Запуск контейнеров
 
-Открой терминал в папке:
+Сначала подними `CodeExecutorService`:
 
 ```powershell
-D:\Hw\StudyBytes\LearningService
+cd ../CodeExecutorService
+docker compose up --build -d
+docker compose ps
 ```
 
-Выполни:
+Потом подними `LearningService`:
 
 ```powershell
+cd ../LearningService
 docker compose build
 docker compose up -d
 docker compose ps
@@ -32,7 +35,9 @@ docker compose ps
 Проверка логов:
 
 ```powershell
+cd ../CodeExecutorService
 docker compose logs -f code-executor-service
+cd ../LearningService
 docker compose logs -f learning-service
 ```
 
@@ -40,21 +45,6 @@ docker compose logs -f learning-service
 
 - `LearningService`: `http://localhost:8083`
 - `CodeExecutorService`: `http://localhost:8084`
-
-### Опционально: поднять только `CodeExecutorService` отдельно (из его папки)
-
-Открой терминал в:
-
-```powershell
-D:\Hw\StudyBytes\CodeExecutorService
-```
-
-И выполни:
-
-```powershell
-docker build -t studybytes/code-executor-service:local .
-docker run -d --name code-executor-service-local -p 8084:8084 -e SERVER_PORT=8084 -v /var/run/docker.sock:/var/run/docker.sock -v /tmp:/tmp studybytes/code-executor-service:local
-```
 
 ## 3) Postman: подготовить данные прогресса (обязательно)
 
@@ -169,4 +159,11 @@ docker compose down
 
 ```powershell
 docker compose down -v
+```
+
+Отдельно остановка `CodeExecutorService`:
+
+```powershell
+cd ../CodeExecutorService
+docker compose down
 ```

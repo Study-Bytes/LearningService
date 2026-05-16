@@ -2,17 +2,17 @@
 
 ## 1) Что теперь запускается
 
-`docker-compose.yml` поднимает 3 контейнера:
+`LearningService/docker-compose.yml` поднимает 2 контейнера:
 
 1. `learning-postgres` - PostgreSQL
-2. `code-executor-service` - реальный CodeExecutorService
-3. `learning-service` - текущий микросервис
+2. `learning-service` - текущий микросервис
+
+`CodeExecutorService` поднимается отдельно из репозитория `../CodeExecutorService` своим `docker-compose.yml`.
 
 По умолчанию наружу проброшены порты:
 
 - `8083` -> `learning-service`
-- `8084` -> `code-executor-service`
-- `6767` -> `learning-postgres`
+- `8084` -> `code-executor-service` (из compose CodeExecutorService)
 
 Все переменные вынесены в `.env`.
 
@@ -20,7 +20,7 @@
 
 `LearningService` ходит в реальный `CourseService` по адресу из `.env`:
 
-- `CODERUNNER_COURSE_SERVICE_BASE_URL=http://host.docker.internal:8082`
+- `CODERUNNER_COURSE_SERVICE_BASE_URL=http://course-service:8082`
 
 Для сценария проверки используй реальные `courseId/moduleId/taskId`, которые существуют в CourseService.
 При submit LearningService прокидывает входящий `Authorization: Bearer <access_token>` в CourseService internal request, а `courseId/moduleId` из CourseService execution package считает источником истины и синхронизирует в локальный `task_progress`.
@@ -36,6 +36,9 @@
 CLI-эквивалент:
 
 ```powershell
+cd ../CodeExecutorService
+docker compose up --build -d
+cd ../LearningService
 docker compose up --build -d
 ```
 
@@ -51,6 +54,7 @@ docker compose logs learning-service --tail 100
 - `GET http://localhost:8083/actuator/health`
 - `docker compose ps`
 - `docker compose logs learning-service --tail 50`
+- `cd ../CodeExecutorService`
 - `docker compose logs code-executor-service --tail 50`
 
 ## 5) Сценарий проверки кода (через Postman)
@@ -176,6 +180,9 @@ docker compose exec learning-postgres psql -U postgres -d learning_service -c "s
 После изменения перезапусти:
 
 ```powershell
+cd ../CodeExecutorService
+docker compose up --build -d
+cd ../LearningService
 docker compose up --build -d
 ```
 
@@ -189,4 +196,11 @@ docker compose down
 
 ```powershell
 docker compose down -v
+```
+
+И отдельно для CodeExecutorService:
+
+```powershell
+cd ../CodeExecutorService
+docker compose down
 ```
