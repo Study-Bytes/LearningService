@@ -260,15 +260,23 @@ For a complete empty-database Postman walkthrough from registration to code verd
 This repository contains `docker-compose.yml` that starts:
 
 1. `learning-postgres`
-2. `code-executor-service` (from sibling repo `../CodeExecutorService`)
-3. `learning-service`
+2. `learning-service`
 
 Prerequisites:
 
 - Docker Desktop running;
-- repository `CodeExecutorService` located at `../CodeExecutorService` relative to this project;
+- `CodeExecutorService` started separately from its own repository and connected to the same external backend network;
 - CourseService running and reachable by `CODERUNNER_COURSE_SERVICE_BASE_URL`;
 - UserService running and reachable by `SPRING_SECURITY_OAUTH2_RESOURCESERVER_JWT_JWK_SET_URI` for JWT verification.
+
+Start CodeExecutorService separately:
+
+```powershell
+cd ../CodeExecutorService
+docker compose up --build -d
+```
+
+Then start LearningService:
 
 Start:
 
@@ -281,7 +289,6 @@ Status and logs:
 ```powershell
 docker compose ps
 docker compose logs learning-service --tail 100
-docker compose logs code-executor-service --tail 100
 ```
 
 Stop:
