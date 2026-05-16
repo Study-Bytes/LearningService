@@ -1,4 +1,4 @@
-# CodeRunner Commands
+﻿# CodeRunner Commands
 
 ## 1) Что теперь запускается
 
@@ -10,8 +10,8 @@
 
 По умолчанию наружу проброшены порты:
 
-- `8090` -> `learning-service`
-- `8095` -> `code-executor-service`
+- `8083` -> `learning-service`
+- `8084` -> `code-executor-service`
 - `6767` -> `learning-postgres`
 
 Все переменные вынесены в `.env`.
@@ -48,7 +48,7 @@ docker compose logs learning-service --tail 100
 
 ## 4) Проверка health
 
-- `GET http://localhost:8090/actuator/health`
+- `GET http://localhost:8083/actuator/health`
 - `docker compose ps`
 - `docker compose logs learning-service --tail 50`
 - `docker compose logs code-executor-service --tail 50`
@@ -57,7 +57,7 @@ docker compose logs learning-service --tail 100
 
 ### 5.1 Подготовить progress-записи
 
-1) `POST http://localhost:8090/api/v1/learning/course-enrollments`
+1) `POST http://localhost:8083/api/v1/learning/course-enrollments`
 
 ```json
 {
@@ -71,7 +71,7 @@ docker compose logs learning-service --tail 100
 }
 ```
 
-2) `POST http://localhost:8090/api/v1/learning/module-progress`
+2) `POST http://localhost:8083/api/v1/learning/module-progress`
 
 ```json
 {
@@ -86,7 +86,7 @@ docker compose logs learning-service --tail 100
 }
 ```
 
-3) `POST http://localhost:8090/api/v1/learning/task-progress`
+3) `POST http://localhost:8083/api/v1/learning/task-progress`
 
 ```json
 {
@@ -104,7 +104,7 @@ docker compose logs learning-service --tail 100
 
 ### 5.2 Отправить решение на проверку
 
-`POST http://localhost:8090/api/v1/learning/tasks/{{task_id}}/submissions`
+`POST http://localhost:8083/api/v1/learning/tasks/{{task_id}}/submissions`
 
 Headers:
 
@@ -142,9 +142,9 @@ Body:
 
 ### 5.3 Проверить агрегаты прогресса
 
-- `GET http://localhost:8090/api/v1/learning/task-progress/{{student_id}}/{{course_id}}/{{module_id}}/{{task_id}}`
-- `GET http://localhost:8090/api/v1/learning/module-progress/{{student_id}}/{{course_id}}/{{module_id}}`
-- `GET http://localhost:8090/api/v1/learning/course-enrollments/{{student_id}}/{{course_id}}`
+- `GET http://localhost:8083/api/v1/learning/task-progress/{{student_id}}/{{course_id}}/{{module_id}}/{{task_id}}`
+- `GET http://localhost:8083/api/v1/learning/module-progress/{{student_id}}/{{course_id}}/{{module_id}}`
+- `GET http://localhost:8083/api/v1/learning/course-enrollments/{{student_id}}/{{course_id}}`
 
 ## 6) Проверка данных в БД
 
@@ -170,8 +170,8 @@ docker compose exec learning-postgres psql -U postgres -d learning_service -c "s
 
 Примеры:
 
-- executor в той же docker-сети: `http://code-executor-service:8095`
-- executor на хосте: `http://host.docker.internal:8095`
+- executor в той же docker-сети: `http://code-executor-service:8084`
+- executor на хосте: `http://host.docker.internal:8084`
 
 После изменения перезапусти:
 

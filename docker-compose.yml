@@ -1,4 +1,4 @@
-name: studybytes-learning-local
+﻿name: studybytes-learning-local
 
 services:
   learning-postgres:
@@ -24,7 +24,7 @@ services:
     environment:
       SERVER_PORT: ${CODE_EXECUTOR_SERVER_PORT}
     ports:
-      - "${CODE_EXECUTOR_HOST_PORT}:8095"
+      - "${CODE_EXECUTOR_HOST_PORT}:8084"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /tmp:/tmp
@@ -55,7 +55,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "${LEARNING_SERVICE_HOST_PORT}:8090"
+      - "${LEARNING_SERVICE_HOST_PORT}:8083"
 
 volumes:
   learning-postgres-data:

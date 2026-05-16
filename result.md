@@ -1,4 +1,4 @@
-# LearningService: запуск и проверка API
+﻿# LearningService: запуск и проверка API
 
 ## 1) Как поднять микросервис
 
@@ -71,7 +71,7 @@ mvn spring-boot:run
 
 Приложение стартует на:
 
-`http://localhost:8090`
+`http://localhost:8083`
 
 При старте Hibernate автоматически создаст/обновит 3 нужные таблицы:
 - `course_enrollments`
@@ -88,7 +88,7 @@ psql -h localhost -U postgres -d learning_service -c "\dt"
 
 Base URL:
 
-`http://localhost:8090/api/v1/learning`
+`http://localhost:8083/api/v1/learning`
 
 Заголовок для всех `POST/PUT`:
 - `Content-Type: application/json`

@@ -1,5 +1,5 @@
-server:
-  port: ${SERVER_PORT:8090}
+﻿server:
+  port: ${SERVER_PORT:8083}
 
 spring:
   datasource:
@@ -42,7 +42,7 @@ coderunner:
   course-service:
     base-url: ${CODERUNNER_COURSE_SERVICE_BASE_URL:http://localhost:8082}
     internal-api-key-header: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY_HEADER:X-Internal-API-Key}
-    internal-api-key: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY:dev-learning-service-internal-key}
+    internal-api-key: ${CODERUNNER_COURSE_SERVICE_INTERNAL_API_KEY:dev-course-service-internal-key}
   executor-service:
-    base-url: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL:http://localhost:8095}
+    base-url: ${CODERUNNER_EXECUTOR_SERVICE_BASE_URL:http://localhost:8084}
     auth-token: ${CODERUNNER_EXECUTOR_SERVICE_AUTH_TOKEN:dev-executor-service-token}

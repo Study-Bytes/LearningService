@@ -1,4 +1,4 @@
-# LearningService
+﻿# LearningService
 
 LearningService stores user learning state and code submission history for the StudyBytes platform.
 
@@ -372,7 +372,7 @@ Common statuses:
 ## Known operational notes
 
 - `409` on progress `POST` is expected when the same composite record already exists.
-- If host port is occupied (for example `8090`), adjust `.env` host port mapping.
+- If host port is occupied (for example `8083`), adjust `.env` host port mapping.
 - If local DB state is stale, run `docker compose down -v` and start again.
 - `target/` artifacts are local build outputs and should not be used as source-of-truth docs.
 

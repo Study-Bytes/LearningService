@@ -1,4 +1,4 @@
-# RunInfoRequests: сценарий прогона кода через LearningService (JWT)
+﻿# RunInfoRequests: сценарий прогона кода через LearningService (JWT)
 
 Ниже полный поток запросов в сценарии, где фронт отправляет JWT access token.
 
@@ -27,7 +27,7 @@
 ### HTTP
 
 - Method: `POST`
-- URL: `http://localhost:8090/api/v1/learning/tasks/{taskId}/submissions`
+- URL: `http://localhost:8083/api/v1/learning/tasks/{taskId}/submissions`
 - Headers:
   - `Content-Type: application/json`
   - `Authorization: Bearer <access_token>`

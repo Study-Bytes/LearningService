@@ -1,10 +1,10 @@
-openapi: 3.0.3
+﻿openapi: 3.0.3
 info:
   title: LearningService API Contracts
   version: 1.0.0
   description: Contracts for progress and CodeRunner submission endpoints.
 servers:
-  - url: http://localhost:8090
+  - url: http://localhost:8083
 paths:
   /api/v1/learning/course-enrollments:
     post:
