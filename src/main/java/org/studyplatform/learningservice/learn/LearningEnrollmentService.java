@@ -5,12 +5,14 @@ import org.springframework.transaction.annotation.Transactional;
 import org.studyplatform.learningservice.common.ProgressStatus;
 import org.studyplatform.learningservice.common.exception.ConflictException;
 import org.studyplatform.learningservice.common.exception.ForbiddenException;
+import org.studyplatform.learningservice.common.exception.NotFoundException;
 import org.studyplatform.learningservice.courseenrollment.CourseEnrollment;
 import org.studyplatform.learningservice.courseenrollment.CourseEnrollmentRepository;
 import org.studyplatform.learningservice.taskprogress.TaskProgress;
 import org.studyplatform.learningservice.taskprogress.TaskProgressRepository;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -97,7 +99,42 @@ public class LearningEnrollmentService {
         );
     }
 
+    @Transactional
+    public LearningItemStateResponse getItemState(Long userId, Long courseId, Long itemId) {
+        courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
+                .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
+
+        CourseStructureResponse course = courseStructureClient.getCourse(courseId);
+        List<OrderedCourseItem> orderedItems = orderedCourseItems(course);
+        int currentIndex = findItemIndex(orderedItems, itemId);
+        if (currentIndex < 0) {
+            throw new NotFoundException("Course item not found in course");
+        }
+
+        OrderedCourseItem currentItem = orderedItems.get(currentIndex);
+        TaskProgress progress = taskProgressRepository.findByUserIdAndCourseIdAndTaskId(userId, courseId, itemId)
+                .map(existing -> touchTaskProgress(existing, currentItem.moduleId()))
+                .orElseGet(() -> createTaskProgress(userId, courseId, currentItem.moduleId(), itemId));
+
+        return new LearningItemStateResponse(
+                courseId,
+                itemId,
+                toItemProgress(progress),
+                new LearningItemNavigationResponse(
+                        currentIndex > 0 ? orderedItems.get(currentIndex - 1).itemId() : null,
+                        currentIndex + 1 < orderedItems.size() ? orderedItems.get(currentIndex + 1).itemId() : null
+                )
+        );
+    }
+
     private List<Long> orderedItemIds(CourseStructureResponse course) {
+        return orderedCourseItems(course)
+                .stream()
+                .map(OrderedCourseItem::itemId)
+                .toList();
+    }
+
+    private List<OrderedCourseItem> orderedCourseItems(CourseStructureResponse course) {
         if (course == null || course.modules() == null || course.modules().isEmpty()) {
             return List.of();
         }
@@ -105,7 +142,7 @@ public class LearningEnrollmentService {
         List<CourseStructureResponse.Module> modules = new ArrayList<>(course.modules());
         modules.sort(Comparator.comparingInt(module -> orZero(module.orderIndex())));
 
-        List<Long> itemIds = new ArrayList<>();
+        List<OrderedCourseItem> itemIds = new ArrayList<>();
         for (CourseStructureResponse.Module module : modules) {
             if (module.items() == null || module.items().isEmpty()) {
                 continue;
@@ -113,12 +150,59 @@ public class LearningEnrollmentService {
             List<CourseStructureResponse.Item> items = new ArrayList<>(module.items());
             items.sort(Comparator.comparingInt(item -> orZero(item.orderIndex())));
             for (CourseStructureResponse.Item item : items) {
-                if (item.id() != null) {
-                    itemIds.add(item.id());
+                if (item.id() != null && module.id() != null) {
+                    itemIds.add(new OrderedCourseItem(item.id(), module.id()));
                 }
             }
         }
         return itemIds;
+    }
+
+    private int findItemIndex(List<OrderedCourseItem> orderedItems, Long itemId) {
+        for (int i = 0; i < orderedItems.size(); i++) {
+            if (orderedItems.get(i).itemId().equals(itemId)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private TaskProgress createTaskProgress(Long userId, Long courseId, Long moduleId, Long itemId) {
+        LocalDateTime now = LocalDateTime.now();
+        TaskProgress progress = new TaskProgress();
+        progress.setUserId(userId);
+        progress.setCourseId(courseId);
+        progress.setModuleId(moduleId);
+        progress.setTaskId(itemId);
+        progress.setStatus(ProgressStatus.NOT_STARTED);
+        progress.setAttemptsCount(0);
+        progress.setBestScore(0);
+        progress.setLastScore(0);
+        progress.setIsCompleted(false);
+        progress.setFirstOpenedAt(now);
+        progress.setLastActivityAt(now);
+        return taskProgressRepository.save(progress);
+    }
+
+    private TaskProgress touchTaskProgress(TaskProgress progress, Long moduleId) {
+        LocalDateTime now = LocalDateTime.now();
+        if (progress.getFirstOpenedAt() == null) {
+            progress.setFirstOpenedAt(now);
+        }
+        if (moduleId != null && !moduleId.equals(progress.getModuleId())) {
+            progress.setModuleId(moduleId);
+        }
+        progress.setLastActivityAt(now);
+        return progress;
+    }
+
+    private LearningItemProgressResponse toItemProgress(TaskProgress progress) {
+        int attemptsCount = orZero(progress.getAttemptsCount());
+        return new LearningItemProgressResponse(
+                progress.getStatus(),
+                attemptsCount,
+                attemptsCount == 0 ? null : progress.getLastScore()
+        );
     }
 
     private LearningCourseItemStateResponse toItemState(Long itemId, TaskProgress progress) {
@@ -148,5 +232,8 @@ public class LearningEnrollmentService {
 
     private int orZero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private record OrderedCourseItem(Long itemId, Long moduleId) {
     }
 }
