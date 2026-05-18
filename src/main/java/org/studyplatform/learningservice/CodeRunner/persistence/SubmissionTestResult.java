@@ -32,7 +32,7 @@ public class SubmissionTestResult {
     @Column(name = "submission_id", nullable = false)
     private Long submissionId;
 
-    @Column(name = "testKey", nullable = false, length = 255)
+    @Column(name = "test_key", nullable = false, length = 255)
     private String testKey;
 
     @Column(name = "test_order", nullable = false)

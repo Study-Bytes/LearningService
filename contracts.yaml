@@ -136,6 +136,92 @@ paths:
         '422':
           $ref: '#/components/responses/ValidationError'
 
+  /api/v1/learn/courses/{courseId}/items/{itemId}/submit:
+    post:
+      tags: [Submissions]
+      operationId: submitItem
+      summary: Submit current item attempt
+      description: Submits current course item for the enrolled JWT user using all tests and updates task, module and course progress.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ItemId'
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubmitItemRequest'
+      responses:
+        '200':
+          description: Submission result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResultResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/learn/courses/{courseId}/items/{itemId}/submissions:
+    get:
+      tags: [Submissions]
+      operationId: getItemSubmissions
+      summary: List current user submissions for item
+      description: Returns current JWT user's submission history for a course item.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ItemId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Submission history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubmissionHistoryItemResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/learn/submissions/{submissionId}:
+    get:
+      tags: [Submissions]
+      operationId: getSubmission
+      summary: Get submission result
+      description: Returns a single submission result for the current JWT user.
+      parameters:
+        - $ref: '#/components/parameters/SubmissionId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Submission
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResultResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/v1/learning/course-enrollments:
     post:
       tags: [CourseEnrollments]
@@ -421,6 +507,14 @@ components:
         minimum: 1
     ItemId:
       name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+    SubmissionId:
+      name: submissionId
       in: path
       required: true
       schema:
@@ -730,6 +824,42 @@ components:
             type: integer
             format: int64
           example: [1]
+
+    SubmitItemRequest:
+      allOf:
+        - $ref: '#/components/schemas/RunItemRequest'
+
+    SubmissionHistoryItemResponse:
+      type: object
+      required: [id, itemId, status, score, passedTests, totalTests, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 500
+        itemId:
+          type: integer
+          format: int64
+          example: 100
+        status:
+          $ref: '#/components/schemas/SubmissionResultStatus'
+        score:
+          type: number
+          nullable: true
+          format: double
+          example: 100
+        passedTests:
+          type: integer
+          format: int32
+          example: 2
+        totalTests:
+          type: integer
+          format: int32
+          example: 2
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-16T12:00:00Z'
 
     SubmissionResultResponse:
       type: object
