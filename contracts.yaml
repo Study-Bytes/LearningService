@@ -6,6 +6,32 @@ info:
 servers:
   - url: http://localhost:8083
 paths:
+  /api/v1/learn/courses/{courseId}/enroll:
+    post:
+      tags: [Learning]
+      operationId: enrollCourse
+      summary: Enroll current user in course
+      description: Checks course availability in CourseService and creates enrollment for the current JWT user.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Enrollment state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnrollCourseResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
   /api/v1/learning/course-enrollments:
     post:
       tags: [CourseEnrollments]
@@ -309,6 +335,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Current user is not allowed to perform this action
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
     Conflict:
       description: Entity already exists for unique key
       content:
@@ -427,6 +459,21 @@ components:
         updatedAt:
           type: string
           format: date-time
+
+    EnrollCourseResponse:
+      type: object
+      required: [courseId, status, progressPercent]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 1
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        progressPercent:
+          type: integer
+          format: int32
+          example: 0
 
     ModuleProgressCreateRequest:
       type: object
