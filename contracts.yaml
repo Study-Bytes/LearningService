@@ -32,6 +32,50 @@ paths:
         '409':
           $ref: '#/components/responses/Conflict'
 
+  /api/v1/learn/my-courses:
+    get:
+      tags: [Learning]
+      operationId: getMyCourses
+      summary: List current user enrollments
+      description: Returns current user's learning-owned enrollment state. BFF enriches these records with CourseService course metadata.
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Enrollments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MyCourseEnrollmentResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/learn/courses/{courseId}:
+    get:
+      tags: [Learning]
+      operationId: getLearningCourseState
+      summary: Get current user learning state for course
+      description: Returns learning-owned course state. BFF enriches it with CourseService course metadata and module/item details.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Learning course state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningCourseStateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/v1/learning/course-enrollments:
     post:
       tags: [CourseEnrollments]
@@ -474,6 +518,65 @@ components:
           type: integer
           format: int32
           example: 0
+
+    MyCourseEnrollmentResponse:
+      type: object
+      required: [courseId, progressPercent, status, nextItemId]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        progressPercent:
+          type: integer
+          format: int32
+          example: 0
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        nextItemId:
+          type: integer
+          nullable: true
+          format: int64
+          example: 100
+
+    LearningCourseStateResponse:
+      type: object
+      required: [courseId, progressPercent, enrollmentStatus, nextItemId, items]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        progressPercent:
+          type: integer
+          format: int32
+          example: 35
+        enrollmentStatus:
+          $ref: '#/components/schemas/ProgressStatus'
+        nextItemId:
+          type: integer
+          nullable: true
+          format: int64
+          example: 100
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LearningCourseItemStateResponse'
+
+    LearningCourseItemStateResponse:
+      type: object
+      required: [itemId, completed, locked]
+      properties:
+        itemId:
+          type: integer
+          format: int64
+          example: 100
+        completed:
+          type: boolean
+          example: false
+        locked:
+          type: boolean
+          example: false
 
     ModuleProgressCreateRequest:
       type: object
