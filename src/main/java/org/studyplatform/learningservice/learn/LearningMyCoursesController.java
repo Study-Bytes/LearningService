@@ -1,42 +1,28 @@
 package org.studyplatform.learningservice.learn;
 
-import jakarta.validation.constraints.Positive;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
-import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
+
 @RestController
-@Validated
-@RequestMapping("/api/v1/learn/courses")
-public class LearningEnrollmentController {
+@RequestMapping("/api/v1/learn")
+public class LearningMyCoursesController {
 
     private final LearningEnrollmentService learningEnrollmentService;
 
-    public LearningEnrollmentController(LearningEnrollmentService learningEnrollmentService) {
+    public LearningMyCoursesController(LearningEnrollmentService learningEnrollmentService) {
         this.learningEnrollmentService = learningEnrollmentService;
     }
 
-    @PostMapping("/{courseId}/enroll")
-    public EnrollCourseResponse enroll(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable @Positive Long courseId
-    ) {
-        return learningEnrollmentService.enroll(resolveUserId(jwt), courseId);
-    }
-
-    @GetMapping("/{courseId}")
-    public LearningCourseStateResponse getCourseState(
-            @AuthenticationPrincipal Jwt jwt,
-            @PathVariable @Positive Long courseId
-    ) {
-        return learningEnrollmentService.getCourseState(resolveUserId(jwt), courseId);
+    @GetMapping("/my-courses")
+    public List<MyCourseEnrollmentResponse> getMyCourses(@AuthenticationPrincipal Jwt jwt) {
+        return learningEnrollmentService.getMyCourses(resolveUserId(jwt));
     }
 
     private Long resolveUserId(Jwt jwt) {

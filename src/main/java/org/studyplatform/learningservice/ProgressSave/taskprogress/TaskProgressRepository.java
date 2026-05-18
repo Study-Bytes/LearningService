@@ -2,6 +2,7 @@ package org.studyplatform.learningservice.taskprogress;
 
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface TaskProgressRepository extends JpaRepository<TaskProgress, Long> {
@@ -16,4 +17,6 @@ public interface TaskProgressRepository extends JpaRepository<TaskProgress, Long
             Long moduleId,
             Long taskId
     );
+
+    List<TaskProgress> findByUserIdAndCourseId(Long userId, Long courseId);
 }
