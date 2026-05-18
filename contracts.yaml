@@ -101,6 +101,41 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/learn/courses/{courseId}/items/{itemId}/run:
+    post:
+      tags: [Submissions]
+      operationId: runItem
+      summary: Run current item without final submission
+      description: Runs current course item for the enrolled JWT user using open tests only. Does not mark the item as completed.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ItemId'
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunItemRequest'
+      responses:
+        '200':
+          description: Run result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubmissionResultResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /api/v1/learning/course-enrollments:
     post:
       tags: [CourseEnrollments]
@@ -424,6 +459,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ErrorResponse'
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
 
   schemas:
     ProgressStatus:
@@ -658,6 +699,114 @@ components:
           nullable: true
           format: int64
           example: 101
+
+    SubmissionResultStatus:
+      type: string
+      enum:
+        - PENDING
+        - RUNNING
+        - ACCEPTED
+        - WRONG_ANSWER
+        - RUNTIME_ERROR
+        - COMPILATION_ERROR
+        - TIME_LIMIT
+        - MEMORY_LIMIT
+        - SYSTEM_ERROR
+
+    RunItemRequest:
+      type: object
+      properties:
+        sourceCode:
+          type: string
+          nullable: true
+          example: print(input())
+        sql:
+          type: string
+          nullable: true
+          example: select 1;
+        selectedOptionIds:
+          type: array
+          items:
+            type: integer
+            format: int64
+          example: [1]
+
+    SubmissionResultResponse:
+      type: object
+      required: [id, itemId, status, score, passedTests, totalTests, stdout, stderr, testResults, createdAt]
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 500
+        itemId:
+          type: integer
+          format: int64
+          example: 100
+        status:
+          $ref: '#/components/schemas/SubmissionResultStatus'
+        score:
+          type: number
+          nullable: true
+          format: double
+          example: 100
+        passedTests:
+          type: integer
+          format: int32
+          example: 2
+        totalTests:
+          type: integer
+          format: int32
+          example: 2
+        stdout:
+          type: string
+          nullable: true
+          example: "3\n"
+        stderr:
+          type: string
+          nullable: true
+        testResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubmissionTestResultResponse'
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-05-16T12:00:00Z'
+
+    SubmissionTestResultResponse:
+      type: object
+      required: [testKey, visibility, passed, actualOutput, message, durationMs, memoryMb]
+      properties:
+        testKey:
+          type: string
+          example: sample-1
+        visibility:
+          type: string
+          enum:
+            - OPEN
+            - HIDDEN
+          example: OPEN
+        passed:
+          type: boolean
+          example: true
+        actualOutput:
+          type: string
+          nullable: true
+          example: '3'
+        message:
+          type: string
+          nullable: true
+        durationMs:
+          type: integer
+          nullable: true
+          format: int64
+          example: 25
+        memoryMb:
+          type: number
+          nullable: true
+          format: double
+          example: 32
 
     ModuleProgressCreateRequest:
       type: object

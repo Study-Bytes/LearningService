@@ -2,11 +2,17 @@ package org.studyplatform.learningservice.CodeRunner.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionCreateRequest;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionCreateResponse;
 import org.studyplatform.learningservice.CodeRunner.api.ExecutionMode;
+import org.studyplatform.learningservice.CodeRunner.api.RunItemRequest;
+import org.studyplatform.learningservice.CodeRunner.api.SubmissionResultResponse;
+import org.studyplatform.learningservice.CodeRunner.api.SubmissionResultStatus;
+import org.studyplatform.learningservice.CodeRunner.api.SubmissionTestResultResponse;
 import org.studyplatform.learningservice.CodeRunner.client.course.CourseItemExecutionPackage;
 import org.studyplatform.learningservice.CodeRunner.client.course.CourseExecutionPackageProvider;
 import org.studyplatform.learningservice.CodeRunner.client.executor.CodeExecutorClient;
@@ -22,6 +28,7 @@ import org.studyplatform.learningservice.CodeRunner.persistence.TaskSubmission;
 import org.studyplatform.learningservice.CodeRunner.persistence.TaskSubmissionRepository;
 import org.studyplatform.learningservice.CodeRunner.persistence.TestResultStatus;
 import org.studyplatform.learningservice.common.ProgressStatus;
+import org.studyplatform.learningservice.common.exception.ForbiddenException;
 import org.studyplatform.learningservice.common.exception.NotFoundException;
 import org.studyplatform.learningservice.courseenrollment.CourseEnrollment;
 import org.studyplatform.learningservice.courseenrollment.CourseEnrollmentRepository;
@@ -40,6 +47,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Service
 public class CodeRunnerSubmissionService {
@@ -137,6 +145,7 @@ public class CodeRunnerSubmissionService {
         int passedCount = 0;
         int totalCount = executionPackage.tests().size();
         boolean hasCompareFail = false;
+        boolean hasCompilationError = false;
         boolean hasRuntimeError = false;
         boolean hasTimeout = false;
         boolean hasMemoryLimit = false;
@@ -176,6 +185,9 @@ public class CodeRunnerSubmissionService {
                         row.setStatus(TestResultStatus.FAILED);
                         hasCompareFail = true;
                     }
+                } else if ("COMPILATION_ERROR".equals(outcome) || "COMPILE_ERROR".equals(outcome)) {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasCompilationError = true;
                 } else if ("RUNTIME_ERROR".equals(outcome)) {
                     row.setStatus(TestResultStatus.ERROR);
                     hasRuntimeError = true;
@@ -206,6 +218,7 @@ public class CodeRunnerSubmissionService {
         submission.setVerdict(resolveVerdict(
                 allPassed,
                 hasCompareFail,
+                hasCompilationError,
                 hasRuntimeError,
                 hasTimeout,
                 hasMemoryLimit,
@@ -222,6 +235,99 @@ public class CodeRunnerSubmissionService {
         recalculateCourseProgress(userId, courseId);
 
         return toResponse(submission);
+    }
+
+    @Transactional
+    public SubmissionResultResponse runItem(
+            Long userId,
+            Long courseId,
+            Long itemId,
+            String authorizationHeader,
+            @Valid RunItemRequest request
+    ) {
+        CourseEnrollment enrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
+                .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
+
+        CourseItemExecutionPackage executionPackage =
+                courseExecutionPackageProvider.getExecutionPackage(itemId, authorizationHeader);
+        validateRunnableExecutionPackage(courseId, itemId, executionPackage);
+
+        List<CourseItemExecutionPackage.ExecutionTest> tests = openTests(executionPackage);
+        if (tests.isEmpty()) {
+            throw unprocessable("Course item has no open tests to run");
+        }
+
+        String code = resolveRunCode(executionPackage, request);
+        String language = resolveRunLanguage(executionPackage);
+        Long moduleId = executionPackage.moduleId();
+
+        TaskProgress taskProgress = taskProgressRepository.findByUserIdAndCourseIdAndTaskId(userId, courseId, itemId)
+                .orElseGet(() -> createTaskProgress(userId, courseId, moduleId, itemId));
+        syncTaskProgressCourseContext(taskProgress, courseId, moduleId);
+
+        int submissionNumber = nextSubmissionNumber(userId, itemId);
+        TaskSubmission submission = new TaskSubmission();
+        submission.setUserId(userId);
+        submission.setCourseId(courseId);
+        submission.setModuleId(moduleId);
+        submission.setTaskId(itemId);
+        submission.setSubmissionNumber(submissionNumber);
+        submission.setLanguage(language);
+        submission.setSourceCode(code);
+        submission.setStatus(SubmissionStatus.QUEUED);
+        submission = taskSubmissionRepository.save(submission);
+
+        LocalDateTime now = LocalDateTime.now();
+        markEnrollmentOnActivity(enrollment, now);
+        markTaskProgressOnRun(taskProgress, now);
+        courseEnrollmentRepository.save(enrollment);
+        taskProgressRepository.save(taskProgress);
+
+        submission.setStatus(SubmissionStatus.RUNNING);
+        submission.setStartedAt(now);
+        submission = taskSubmissionRepository.save(submission);
+
+        ExecutionCreateRequest executorRequest = buildExecutorRequest(executionPackage, tests, language, code, submission);
+
+        ExecutionResponse executionResponse;
+        try {
+            executionResponse = executeByMode(ExecutionMode.BATCH, executorRequest);
+        } catch (RuntimeException ex) {
+            submission.setStatus(SubmissionStatus.FAILED);
+            submission.setVerdict(SubmissionVerdict.PE);
+            submission.setTotalTestsCount(tests.size());
+            submission.setErrorMessage("Executor call failed");
+            submission.setFinishedAt(LocalDateTime.now());
+            submission = taskSubmissionRepository.save(submission);
+            return toSubmissionResultResponse(submission, List.of(), visibilityByTestKey(tests));
+        }
+
+        submission.setExecutorRequestId(executionResponse.id());
+        ExecutionOutcome outcome = persistExecutionResults(submission, executionPackage, tests, executionResponse);
+
+        int score = outcome.totalCount() == 0 ? 0 : (int) Math.round((outcome.passedCount() * 100.0) / outcome.totalCount());
+        boolean allPassed = outcome.totalCount() > 0 && outcome.passedCount() == outcome.totalCount();
+
+        submission.setPassedTestsCount(outcome.passedCount());
+        submission.setTotalTestsCount(outcome.totalCount());
+        submission.setScore(score);
+        submission.setVerdict(resolveVerdict(
+                allPassed,
+                outcome.hasCompareFail(),
+                outcome.hasCompilationError(),
+                outcome.hasRuntimeError(),
+                outcome.hasTimeout(),
+                outcome.hasMemoryLimit(),
+                outcome.hasInternalError()
+        ));
+        submission.setStatus(SubmissionStatus.FINISHED);
+        submission.setFinishedAt(LocalDateTime.now());
+        submission = taskSubmissionRepository.save(submission);
+
+        updateTaskProgressAfterRun(taskProgress, score);
+        taskProgressRepository.save(taskProgress);
+
+        return toSubmissionResultResponse(submission, outcome.results(), visibilityByTestKey(tests));
     }
 
     private ExecutionResponse executeByMode(ExecutionMode mode, ExecutionCreateRequest request) {
@@ -297,6 +403,32 @@ public class CodeRunnerSubmissionService {
         );
     }
 
+    private void validateRunnableExecutionPackage(
+            Long courseId,
+            Long itemId,
+            CourseItemExecutionPackage executionPackage
+    ) {
+        if (executionPackage == null) {
+            throw new IllegalStateException("CourseService returned empty execution package");
+        }
+        if (executionPackage.itemId() == null || !Objects.equals(executionPackage.itemId(), itemId)) {
+            throw new NotFoundException("Course item not found: " + itemId);
+        }
+        if (executionPackage.courseId() == null || !Objects.equals(executionPackage.courseId(), courseId)) {
+            throw new NotFoundException("Course item not found in course");
+        }
+        if (executionPackage.moduleId() == null) {
+            throw new IllegalStateException("CourseService returned empty moduleId");
+        }
+        String itemType = nullableUpper(executionPackage.itemType());
+        if (!"CODING".equals(itemType) && !"SQL".equals(itemType)) {
+            throw unprocessable("Item type is not runnable");
+        }
+        if (executionPackage.tests() == null || executionPackage.tests().isEmpty()) {
+            throw unprocessable("Execution package has no tests");
+        }
+    }
+
     private void validateExecutionPackage(
             Long taskId,
             CourseItemExecutionPackage executionPackage
@@ -313,6 +445,34 @@ public class CodeRunnerSubmissionService {
         if (executionPackage.tests() == null || executionPackage.tests().isEmpty()) {
             throw new IllegalStateException("Execution package has no tests");
         }
+    }
+
+    private List<CourseItemExecutionPackage.ExecutionTest> openTests(CourseItemExecutionPackage executionPackage) {
+        return executionPackage.tests()
+                .stream()
+                .filter(test -> !hasText(test.visibility()) || "OPEN".equalsIgnoreCase(test.visibility()))
+                .toList();
+    }
+
+    private String resolveRunCode(CourseItemExecutionPackage executionPackage, RunItemRequest request) {
+        String itemType = nullableUpper(executionPackage.itemType());
+        String code = "SQL".equals(itemType)
+                ? request.getSql()
+                : request.getSourceCode();
+        if (!hasText(code)) {
+            throw unprocessable("Runnable source is required");
+        }
+        return code;
+    }
+
+    private String resolveRunLanguage(CourseItemExecutionPackage executionPackage) {
+        if (hasText(executionPackage.language())) {
+            return executionPackage.language();
+        }
+        if ("SQL".equals(nullableUpper(executionPackage.itemType()))) {
+            return "sql";
+        }
+        throw unprocessable("Course item language is required");
     }
 
     private Long resolveAuthoritativeId(Long currentId, Long courseServiceId) {
@@ -350,12 +510,68 @@ public class CodeRunnerSubmissionService {
         }
     }
 
+    private TaskProgress createTaskProgress(Long userId, Long courseId, Long moduleId, Long itemId) {
+        LocalDateTime now = LocalDateTime.now();
+        TaskProgress taskProgress = new TaskProgress();
+        taskProgress.setUserId(userId);
+        taskProgress.setCourseId(courseId);
+        taskProgress.setModuleId(moduleId);
+        taskProgress.setTaskId(itemId);
+        taskProgress.setStatus(ProgressStatus.NOT_STARTED);
+        taskProgress.setAttemptsCount(0);
+        taskProgress.setBestScore(0);
+        taskProgress.setLastScore(0);
+        taskProgress.setIsCompleted(false);
+        taskProgress.setFirstOpenedAt(now);
+        taskProgress.setLastActivityAt(now);
+        return taskProgressRepository.save(taskProgress);
+    }
+
+    private void markEnrollmentOnActivity(CourseEnrollment enrollment, LocalDateTime now) {
+        enrollment.setLastActivityAt(now);
+        if (enrollment.getStartedAt() == null) {
+            enrollment.setStartedAt(now);
+        }
+        if (enrollment.getStatus() == ProgressStatus.NOT_STARTED) {
+            enrollment.setStatus(ProgressStatus.IN_PROGRESS);
+        }
+    }
+
+    private void markTaskProgressOnRun(TaskProgress taskProgress, LocalDateTime now) {
+        taskProgress.setLastActivityAt(now);
+        if (taskProgress.getFirstOpenedAt() == null) {
+            taskProgress.setFirstOpenedAt(now);
+        }
+        if (taskProgress.getStartedAt() == null) {
+            taskProgress.setStartedAt(now);
+        }
+        if (taskProgress.getStatus() == ProgressStatus.NOT_STARTED) {
+            taskProgress.setStatus(ProgressStatus.IN_PROGRESS);
+        }
+    }
+
     private ExecutionCreateRequest buildExecutorRequest(
             CourseItemExecutionPackage executionPackage,
             SubmissionCreateRequest request,
             TaskSubmission submission
     ) {
-        List<ExecutionCreateRequest.TestInput> tests = executionPackage.tests()
+        return buildExecutorRequest(
+                executionPackage,
+                executionPackage.tests(),
+                request.getLanguage(),
+                request.getSourceCode(),
+                submission
+        );
+    }
+
+    private ExecutionCreateRequest buildExecutorRequest(
+            CourseItemExecutionPackage executionPackage,
+            List<CourseItemExecutionPackage.ExecutionTest> executionTests,
+            String language,
+            String code,
+            TaskSubmission submission
+    ) {
+        List<ExecutionCreateRequest.TestInput> tests = executionTests
                 .stream()
                 .map(test -> new ExecutionCreateRequest.TestInput(
                         test.testKey(),
@@ -385,8 +601,8 @@ public class CodeRunnerSubmissionService {
         metadata.put("taskId", String.valueOf(submission.getTaskId()));
 
         return new ExecutionCreateRequest(
-                request.getLanguage(),
-                request.getSourceCode(),
+                language,
+                code,
                 tests,
                 executorLimits,
                 executorPolicy,
@@ -411,6 +627,95 @@ public class CodeRunnerSubmissionService {
         return map;
     }
 
+    private ExecutionOutcome persistExecutionResults(
+            TaskSubmission submission,
+            CourseItemExecutionPackage executionPackage,
+            List<CourseItemExecutionPackage.ExecutionTest> tests,
+            ExecutionResponse executionResponse
+    ) {
+        Map<String, ExecutionResponse.TestExecutionResult> executionResultByKey =
+                indexExecutionResults(executionResponse == null ? null : executionResponse.tests());
+
+        List<SubmissionTestResult> savedResults = new ArrayList<>();
+        int passedCount = 0;
+        boolean hasCompareFail = false;
+        boolean hasCompilationError = false;
+        boolean hasRuntimeError = false;
+        boolean hasTimeout = false;
+        boolean hasMemoryLimit = false;
+        boolean hasInternalError = false;
+
+        for (CourseItemExecutionPackage.ExecutionTest test : tests) {
+            ExecutionResponse.TestExecutionResult testExecutionResult = executionResultByKey.get(test.testKey());
+
+            SubmissionTestResult row = new SubmissionTestResult();
+            row.setSubmissionId(submission.getId());
+            row.setTestKey(test.testKey());
+            row.setTestOrder(orZero(test.orderIndex()));
+            row.setInputSnapshot(test.inputData());
+            row.setExpectedOutput(test.expectedOutput());
+
+            if (testExecutionResult == null) {
+                row.setStatus(TestResultStatus.SKIPPED);
+                row.setActualOutput(null);
+                row.setErrorOutput(null);
+            } else {
+                row.setActualOutput(getOutputData(testExecutionResult.stdout()));
+                row.setErrorOutput(getOutputData(testExecutionResult.stderr()));
+                row.setExecutionTimeMs(testExecutionResult.durationMs());
+                row.setMemoryKb(toKb(testExecutionResult.memoryMb()));
+
+                String outcome = nullableUpper(testExecutionResult.outcome());
+                if ("OK".equals(outcome)) {
+                    boolean passed = compareOutputs(
+                            test.expectedOutput(),
+                            getOutputData(testExecutionResult.stdout()),
+                            executionPackage.evaluationPolicy()
+                    );
+                    if (passed) {
+                        row.setStatus(TestResultStatus.PASSED);
+                        passedCount++;
+                    } else {
+                        row.setStatus(TestResultStatus.FAILED);
+                        hasCompareFail = true;
+                    }
+                } else if ("COMPILATION_ERROR".equals(outcome) || "COMPILE_ERROR".equals(outcome)) {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasCompilationError = true;
+                } else if ("RUNTIME_ERROR".equals(outcome)) {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasRuntimeError = true;
+                } else if ("TIMEOUT".equals(outcome)) {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasTimeout = true;
+                } else if ("MEMORY_LIMIT".equals(outcome)) {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasMemoryLimit = true;
+                } else if ("INTERNAL_ERROR".equals(outcome)) {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasInternalError = true;
+                } else {
+                    row.setStatus(TestResultStatus.ERROR);
+                    hasInternalError = true;
+                }
+            }
+
+            savedResults.add(submissionTestResultRepository.save(row));
+        }
+
+        return new ExecutionOutcome(
+                savedResults,
+                passedCount,
+                tests.size(),
+                hasCompareFail,
+                hasCompilationError,
+                hasRuntimeError,
+                hasTimeout,
+                hasMemoryLimit,
+                hasInternalError
+        );
+    }
+
     private void updateTaskProgressAfterExecution(TaskProgress taskProgress, int score, boolean allPassed) {
         LocalDateTime now = LocalDateTime.now();
         taskProgress.setLastScore(score);
@@ -425,6 +730,14 @@ public class CodeRunnerSubmissionService {
             taskProgress.setIsCompleted(true);
             taskProgress.setStatus(ProgressStatus.COMPLETED);
         } else if (!Boolean.TRUE.equals(taskProgress.getIsCompleted())) {
+            taskProgress.setStatus(ProgressStatus.IN_PROGRESS);
+        }
+    }
+
+    private void updateTaskProgressAfterRun(TaskProgress taskProgress, int score) {
+        taskProgress.setLastScore(score);
+        taskProgress.setLastActivityAt(LocalDateTime.now());
+        if (!Boolean.TRUE.equals(taskProgress.getIsCompleted())) {
             taskProgress.setStatus(ProgressStatus.IN_PROGRESS);
         }
     }
@@ -521,6 +834,7 @@ public class CodeRunnerSubmissionService {
     private SubmissionVerdict resolveVerdict(
             boolean allPassed,
             boolean hasCompareFail,
+            boolean hasCompilationError,
             boolean hasRuntimeError,
             boolean hasTimeout,
             boolean hasMemoryLimit,
@@ -531,6 +845,9 @@ public class CodeRunnerSubmissionService {
         }
         if (hasInternalError) {
             return SubmissionVerdict.PE;
+        }
+        if (hasCompilationError) {
+            return SubmissionVerdict.CE;
         }
         if (hasMemoryLimit) {
             return SubmissionVerdict.ML;
@@ -607,6 +924,14 @@ public class CodeRunnerSubmissionService {
         return value == null ? null : value.toUpperCase();
     }
 
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private ResponseStatusException unprocessable(String message) {
+        return new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY, message);
+    }
+
     private SubmissionCreateResponse toResponse(TaskSubmission submission) {
         return new SubmissionCreateResponse(
                 submission.getId(),
@@ -617,5 +942,131 @@ public class CodeRunnerSubmissionService {
                 submission.getTotalTestsCount(),
                 submission.getExecutorRequestId()
         );
+    }
+
+    private SubmissionResultResponse toSubmissionResultResponse(
+            TaskSubmission submission,
+            List<SubmissionTestResult> results,
+            Map<String, String> visibilityByTestKey
+    ) {
+        return new SubmissionResultResponse(
+                submission.getId(),
+                submission.getTaskId(),
+                toSubmissionResultStatus(submission),
+                submission.getScore() == null ? null : submission.getScore().doubleValue(),
+                submission.getPassedTestsCount(),
+                submission.getTotalTestsCount(),
+                firstActualOutput(results),
+                firstErrorOutput(submission, results),
+                results.stream()
+                        .map(result -> toSubmissionTestResultResponse(result, visibilityByTestKey))
+                        .toList(),
+                submission.getCreatedAt()
+        );
+    }
+
+    private SubmissionTestResultResponse toSubmissionTestResultResponse(
+            SubmissionTestResult result,
+            Map<String, String> visibilityByTestKey
+    ) {
+        return new SubmissionTestResultResponse(
+                result.getTestKey(),
+                visibilityByTestKey.getOrDefault(result.getTestKey(), "OPEN"),
+                result.getStatus() == TestResultStatus.PASSED,
+                result.getActualOutput(),
+                resultMessage(result),
+                result.getExecutionTimeMs() == null ? null : result.getExecutionTimeMs().longValue(),
+                result.getMemoryKb() == null ? null : result.getMemoryKb() / 1024.0
+        );
+    }
+
+    private SubmissionResultStatus toSubmissionResultStatus(TaskSubmission submission) {
+        if (submission.getStatus() == SubmissionStatus.QUEUED) {
+            return SubmissionResultStatus.PENDING;
+        }
+        if (submission.getStatus() == SubmissionStatus.RUNNING) {
+            return SubmissionResultStatus.RUNNING;
+        }
+        if (submission.getStatus() == SubmissionStatus.FAILED) {
+            return SubmissionResultStatus.SYSTEM_ERROR;
+        }
+
+        SubmissionVerdict verdict = submission.getVerdict();
+        if (verdict == SubmissionVerdict.OK) {
+            return SubmissionResultStatus.ACCEPTED;
+        }
+        if (verdict == SubmissionVerdict.WA || verdict == SubmissionVerdict.PE) {
+            return SubmissionResultStatus.WRONG_ANSWER;
+        }
+        if (verdict == SubmissionVerdict.CE) {
+            return SubmissionResultStatus.COMPILATION_ERROR;
+        }
+        if (verdict == SubmissionVerdict.RE) {
+            return SubmissionResultStatus.RUNTIME_ERROR;
+        }
+        if (verdict == SubmissionVerdict.TL) {
+            return SubmissionResultStatus.TIME_LIMIT;
+        }
+        if (verdict == SubmissionVerdict.ML) {
+            return SubmissionResultStatus.MEMORY_LIMIT;
+        }
+        return SubmissionResultStatus.SYSTEM_ERROR;
+    }
+
+    private String resultMessage(SubmissionTestResult result) {
+        if (result.getStatus() == TestResultStatus.PASSED) {
+            return null;
+        }
+        if (hasText(result.getErrorOutput())) {
+            return result.getErrorOutput();
+        }
+        if (result.getStatus() == TestResultStatus.FAILED) {
+            return "Wrong answer";
+        }
+        if (result.getStatus() == TestResultStatus.SKIPPED) {
+            return "Test was not executed";
+        }
+        return "Execution error";
+    }
+
+    private String firstActualOutput(List<SubmissionTestResult> results) {
+        return results.stream()
+                .map(SubmissionTestResult::getActualOutput)
+                .filter(this::hasText)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String firstErrorOutput(TaskSubmission submission, List<SubmissionTestResult> results) {
+        if (hasText(submission.getErrorMessage())) {
+            return submission.getErrorMessage();
+        }
+        return results.stream()
+                .map(SubmissionTestResult::getErrorOutput)
+                .filter(this::hasText)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private Map<String, String> visibilityByTestKey(List<CourseItemExecutionPackage.ExecutionTest> tests) {
+        return tests.stream()
+                .collect(Collectors.toMap(
+                        CourseItemExecutionPackage.ExecutionTest::testKey,
+                        test -> hasText(test.visibility()) ? test.visibility() : "OPEN",
+                        (first, ignored) -> first
+                ));
+    }
+
+    private record ExecutionOutcome(
+            List<SubmissionTestResult> results,
+            int passedCount,
+            int totalCount,
+            boolean hasCompareFail,
+            boolean hasCompilationError,
+            boolean hasRuntimeError,
+            boolean hasTimeout,
+            boolean hasMemoryLimit,
+            boolean hasInternalError
+    ) {
     }
 }
