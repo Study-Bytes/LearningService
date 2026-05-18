@@ -2,6 +2,8 @@ package org.studyplatform.learningservice.CodeRunner.service;
 
 import jakarta.persistence.EntityManager;
 import jakarta.validation.Valid;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -52,6 +54,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class CodeRunnerSubmissionService {
+
+    private static final Logger log = LoggerFactory.getLogger(CodeRunnerSubmissionService.class);
 
     private final CourseExecutionPackageProvider courseExecutionPackageProvider;
     private final CodeExecutorClient codeExecutorClient;
@@ -246,6 +250,16 @@ public class CodeRunnerSubmissionService {
             String authorizationHeader,
             @Valid RunItemRequest request
     ) {
+        log.info(
+                "Run item requested userId={} courseId={} itemId={} sourceCodeLength={} sqlLength={} selectedOptions={}",
+                userId,
+                courseId,
+                itemId,
+                textLength(request.getSourceCode()),
+                textLength(request.getSql()),
+                listSize(request.getSelectedOptionIds())
+        );
+
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                 .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
 
@@ -328,6 +342,18 @@ public class CodeRunnerSubmissionService {
         updateTaskProgressAfterRun(taskProgress, score);
         taskProgressRepository.save(taskProgress);
 
+        log.info(
+                "Run item finished userId={} courseId={} itemId={} submissionId={} status={} score={} passedTests={} totalTests={}",
+                userId,
+                courseId,
+                itemId,
+                submission.getId(),
+                toSubmissionResultStatus(submission),
+                submission.getScore(),
+                submission.getPassedTestsCount(),
+                submission.getTotalTestsCount()
+        );
+
         return toSubmissionResultResponse(submission, outcome.results(), visibilityByTestKey(tests));
     }
 
@@ -339,6 +365,16 @@ public class CodeRunnerSubmissionService {
             String authorizationHeader,
             @Valid RunItemRequest request
     ) {
+        log.info(
+                "Submit item requested userId={} courseId={} itemId={} sourceCodeLength={} sqlLength={} selectedOptions={}",
+                userId,
+                courseId,
+                itemId,
+                textLength(request.getSourceCode()),
+                textLength(request.getSql()),
+                listSize(request.getSelectedOptionIds())
+        );
+
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                 .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
 
@@ -420,6 +456,18 @@ public class CodeRunnerSubmissionService {
         recalculateModuleProgress(userId, courseId, moduleId);
         recalculateCourseProgress(userId, courseId);
 
+        log.info(
+                "Submit item finished userId={} courseId={} itemId={} submissionId={} status={} score={} passedTests={} totalTests={}",
+                userId,
+                courseId,
+                itemId,
+                submission.getId(),
+                toSubmissionResultStatus(submission),
+                submission.getScore(),
+                submission.getPassedTestsCount(),
+                submission.getTotalTestsCount()
+        );
+
         return toSubmissionResultResponse(submission, outcome.results(), visibilityByTestKey(tests));
     }
 
@@ -430,6 +478,8 @@ public class CodeRunnerSubmissionService {
             Long itemId,
             String authorizationHeader
     ) {
+        log.info("Submission history requested userId={} courseId={} itemId={}", userId, courseId, itemId);
+
         courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                 .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
 
@@ -437,10 +487,12 @@ public class CodeRunnerSubmissionService {
                 courseExecutionPackageProvider.getExecutionPackage(itemId, authorizationHeader);
         validateCourseItemContext(courseId, itemId, executionPackage);
 
-        return taskSubmissionRepository.findByUserIdAndCourseIdAndTaskIdOrderByCreatedAtDesc(userId, courseId, itemId)
+        List<SubmissionHistoryItemResponse> history = taskSubmissionRepository.findByUserIdAndCourseIdAndTaskIdOrderByCreatedAtDesc(userId, courseId, itemId)
                 .stream()
                 .map(this::toSubmissionHistoryItemResponse)
                 .toList();
+        log.info("Submission history returned userId={} courseId={} itemId={} count={}", userId, courseId, itemId, history.size());
+        return history;
     }
 
     @Transactional(readOnly = true)
@@ -449,6 +501,8 @@ public class CodeRunnerSubmissionService {
             Long submissionId,
             String authorizationHeader
     ) {
+        log.info("Submission result requested userId={} submissionId={}", userId, submissionId);
+
         TaskSubmission submission = taskSubmissionRepository.findById(submissionId)
                 .orElseThrow(() -> new NotFoundException("Submission not found: " + submissionId));
 
@@ -462,11 +516,20 @@ public class CodeRunnerSubmissionService {
         CourseItemExecutionPackage executionPackage =
                 courseExecutionPackageProvider.getExecutionPackage(submission.getTaskId(), authorizationHeader);
 
-        return toSubmissionResultResponse(
+        SubmissionResultResponse response = toSubmissionResultResponse(
                 submission,
                 results,
                 visibilityByTestKey(executionPackage)
         );
+        log.info(
+                "Submission result returned userId={} submissionId={} itemId={} status={} tests={}",
+                userId,
+                submissionId,
+                submission.getTaskId(),
+                response.status(),
+                response.testResults() == null ? 0 : response.testResults().size()
+        );
+        return response;
     }
 
     private ExecutionResponse executeByMode(ExecutionMode mode, ExecutionCreateRequest request) {
@@ -1032,11 +1095,9 @@ public class CodeRunnerSubmissionService {
         }
 
         if (trimTrailingWhitespaces) {
-            String[] lines = normalized.split("\n", -1);
-            for (int i = 0; i < lines.length; i++) {
-                lines[i] = lines[i].replaceAll("[\\t ]+$", "");
-            }
-            normalized = String.join("\n", lines);
+            normalized = normalized
+                    .replaceAll("[\\t ]+(?=\\n|$)", "")
+                    .replaceAll("\\s+$", "");
         }
 
         return normalized;
@@ -1073,6 +1134,14 @@ public class CodeRunnerSubmissionService {
 
     private boolean hasText(String value) {
         return value != null && !value.isBlank();
+    }
+
+    private int textLength(String value) {
+        return value == null ? 0 : value.length();
+    }
+
+    private int listSize(List<?> value) {
+        return value == null ? 0 : value.size();
     }
 
     private ResponseStatusException unprocessable(String message) {

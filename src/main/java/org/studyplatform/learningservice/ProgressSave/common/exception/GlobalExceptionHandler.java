@@ -2,6 +2,8 @@ package org.studyplatform.learningservice.common.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -18,19 +20,21 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException ex, HttpServletRequest request) {
-        return build(HttpStatus.NOT_FOUND, ex.getMessage(), request.getRequestURI());
+        return handled(HttpStatus.NOT_FOUND, ex.getMessage(), request);
     }
 
     @ExceptionHandler(ConflictException.class)
     public ResponseEntity<ErrorResponse> handleConflict(ConflictException ex, HttpServletRequest request) {
-        return build(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
+        return handled(HttpStatus.CONFLICT, ex.getMessage(), request);
     }
 
     @ExceptionHandler(ForbiddenException.class)
     public ResponseEntity<ErrorResponse> handleForbidden(ForbiddenException ex, HttpServletRequest request) {
-        return build(HttpStatus.FORBIDDEN, ex.getMessage(), request.getRequestURI());
+        return handled(HttpStatus.FORBIDDEN, ex.getMessage(), request);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -43,7 +47,7 @@ public class GlobalExceptionHandler {
                 .stream()
                 .map(this::formatFieldError)
                 .collect(Collectors.joining("; "));
-        return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
+        return handled(HttpStatus.BAD_REQUEST, message, request);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -55,7 +59,7 @@ public class GlobalExceptionHandler {
                 .stream()
                 .map(violation -> violation.getPropertyPath() + ": " + violation.getMessage())
                 .collect(Collectors.joining("; "));
-        return build(HttpStatus.BAD_REQUEST, message, request.getRequestURI());
+        return handled(HttpStatus.BAD_REQUEST, message, request);
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
@@ -63,7 +67,7 @@ public class GlobalExceptionHandler {
             HttpMessageNotReadableException ex,
             HttpServletRequest request
     ) {
-        return build(HttpStatus.BAD_REQUEST, "Некорректное тело запроса", request.getRequestURI());
+        return handled(HttpStatus.BAD_REQUEST, "Некорректное тело запроса", request);
     }
 
     @ExceptionHandler(ResponseStatusException.class)
@@ -72,12 +76,30 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         HttpStatus status = HttpStatus.valueOf(ex.getStatusCode().value());
-        return build(status, ex.getReason(), request.getRequestURI());
+        return handled(status, ex.getReason(), request);
     }
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleAny(Exception ex, HttpServletRequest request) {
+        log.error(
+                "Unhandled exception method={} path={} message={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                ex.getMessage(),
+                ex
+        );
         return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage(), request.getRequestURI());
+    }
+
+    private ResponseEntity<ErrorResponse> handled(HttpStatus status, String message, HttpServletRequest request) {
+        log.warn(
+                "Handled exception status={} method={} path={} message={}",
+                status.value(),
+                request.getMethod(),
+                request.getRequestURI(),
+                message
+        );
+        return build(status, message, request.getRequestURI());
     }
 
     private ResponseEntity<ErrorResponse> build(HttpStatus status, String message, String path) {
