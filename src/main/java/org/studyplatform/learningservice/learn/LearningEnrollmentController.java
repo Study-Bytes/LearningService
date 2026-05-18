@@ -39,6 +39,15 @@ public class LearningEnrollmentController {
         return learningEnrollmentService.getCourseState(resolveUserId(jwt), courseId);
     }
 
+    @GetMapping("/{courseId}/items/{itemId}")
+    public LearningItemStateResponse getItemState(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable @Positive Long courseId,
+            @PathVariable @Positive Long itemId
+    ) {
+        return learningEnrollmentService.getItemState(resolveUserId(jwt), courseId, itemId);
+    }
+
     private Long resolveUserId(Jwt jwt) {
         if (jwt == null || jwt.getSubject() == null || jwt.getSubject().isBlank()) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "JWT subject is missing");

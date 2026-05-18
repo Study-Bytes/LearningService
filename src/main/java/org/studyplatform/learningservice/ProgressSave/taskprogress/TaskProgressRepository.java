@@ -11,6 +11,8 @@ public interface TaskProgressRepository extends JpaRepository<TaskProgress, Long
 
     Optional<TaskProgress> findByUserIdAndTaskId(Long userId, Long taskId);
 
+    Optional<TaskProgress> findByUserIdAndCourseIdAndTaskId(Long userId, Long courseId, Long taskId);
+
     Optional<TaskProgress> findByUserIdAndCourseIdAndModuleIdAndTaskId(
             Long userId,
             Long courseId,

@@ -76,6 +76,31 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/learn/courses/{courseId}/items/{itemId}:
+    get:
+      tags: [Learning]
+      operationId: getLearningItemState
+      summary: Get current user learning state for course item
+      description: Returns learning-owned item progress and navigation state. BFF enriches it with CourseService course and item content.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ItemId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Learning item state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningItemStateResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /api/v1/learning/course-enrollments:
     post:
       tags: [CourseEnrollments]
@@ -359,6 +384,14 @@ components:
         type: integer
         format: int64
         minimum: 1
+    ItemId:
+      name: itemId
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
 
   responses:
     Unauthorized:
@@ -577,6 +610,54 @@ components:
         locked:
           type: boolean
           example: false
+
+    LearningItemStateResponse:
+      type: object
+      required: [courseId, itemId, progress, navigation]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        itemId:
+          type: integer
+          format: int64
+          example: 100
+        progress:
+          $ref: '#/components/schemas/LearningItemProgressResponse'
+        navigation:
+          $ref: '#/components/schemas/LearningItemNavigationResponse'
+
+    LearningItemProgressResponse:
+      type: object
+      required: [status, attemptsCount, lastScore]
+      properties:
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
+        attemptsCount:
+          type: integer
+          format: int32
+          example: 0
+        lastScore:
+          type: integer
+          nullable: true
+          format: int32
+          example: 80
+
+    LearningItemNavigationResponse:
+      type: object
+      required: [previousItemId, nextItemId]
+      properties:
+        previousItemId:
+          type: integer
+          nullable: true
+          format: int64
+          example: 99
+        nextItemId:
+          type: integer
+          nullable: true
+          format: int64
+          example: 101
 
     ModuleProgressCreateRequest:
       type: object

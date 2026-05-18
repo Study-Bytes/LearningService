@@ -20,6 +20,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/learn/my-courses").authenticated()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/learn/courses/*/items/*").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/learn/courses/*").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/learn/courses/*/enroll").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/learning/tasks/*/submissions").authenticated()
