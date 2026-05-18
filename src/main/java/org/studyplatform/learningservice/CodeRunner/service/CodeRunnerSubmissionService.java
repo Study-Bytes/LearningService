@@ -10,6 +10,7 @@ import org.studyplatform.learningservice.CodeRunner.api.SubmissionCreateRequest;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionCreateResponse;
 import org.studyplatform.learningservice.CodeRunner.api.ExecutionMode;
 import org.studyplatform.learningservice.CodeRunner.api.RunItemRequest;
+import org.studyplatform.learningservice.CodeRunner.api.SubmissionHistoryItemResponse;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionResultResponse;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionResultStatus;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionTestResultResponse;
@@ -330,6 +331,144 @@ public class CodeRunnerSubmissionService {
         return toSubmissionResultResponse(submission, outcome.results(), visibilityByTestKey(tests));
     }
 
+    @Transactional
+    public SubmissionResultResponse submitItem(
+            Long userId,
+            Long courseId,
+            Long itemId,
+            String authorizationHeader,
+            @Valid RunItemRequest request
+    ) {
+        CourseEnrollment enrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
+                .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
+
+        CourseItemExecutionPackage executionPackage =
+                courseExecutionPackageProvider.getExecutionPackage(itemId, authorizationHeader);
+        validateRunnableExecutionPackage(courseId, itemId, executionPackage);
+
+        List<CourseItemExecutionPackage.ExecutionTest> tests = executionPackage.tests();
+        String code = resolveRunCode(executionPackage, request);
+        String language = resolveRunLanguage(executionPackage);
+        Long moduleId = executionPackage.moduleId();
+
+        TaskProgress taskProgress = taskProgressRepository.findByUserIdAndCourseIdAndTaskId(userId, courseId, itemId)
+                .orElseGet(() -> createTaskProgress(userId, courseId, moduleId, itemId));
+        syncTaskProgressCourseContext(taskProgress, courseId, moduleId);
+
+        int submissionNumber = nextSubmissionNumber(userId, itemId);
+        TaskSubmission submission = new TaskSubmission();
+        submission.setUserId(userId);
+        submission.setCourseId(courseId);
+        submission.setModuleId(moduleId);
+        submission.setTaskId(itemId);
+        submission.setSubmissionNumber(submissionNumber);
+        submission.setLanguage(language);
+        submission.setSourceCode(code);
+        submission.setStatus(SubmissionStatus.QUEUED);
+        submission = taskSubmissionRepository.save(submission);
+
+        LocalDateTime now = LocalDateTime.now();
+        markEnrollmentOnActivity(enrollment, now);
+        markTaskProgressOnSubmit(taskProgress, now);
+        courseEnrollmentRepository.save(enrollment);
+        taskProgressRepository.save(taskProgress);
+
+        submission.setStatus(SubmissionStatus.RUNNING);
+        submission.setStartedAt(now);
+        submission = taskSubmissionRepository.save(submission);
+
+        ExecutionCreateRequest executorRequest = buildExecutorRequest(executionPackage, tests, language, code, submission);
+
+        ExecutionResponse executionResponse;
+        try {
+            executionResponse = executeByMode(ExecutionMode.BATCH, executorRequest);
+        } catch (RuntimeException ex) {
+            submission.setStatus(SubmissionStatus.FAILED);
+            submission.setVerdict(SubmissionVerdict.PE);
+            submission.setTotalTestsCount(tests.size());
+            submission.setErrorMessage("Executor call failed");
+            submission.setFinishedAt(LocalDateTime.now());
+            submission = taskSubmissionRepository.save(submission);
+            return toSubmissionResultResponse(submission, List.of(), visibilityByTestKey(tests));
+        }
+
+        submission.setExecutorRequestId(executionResponse.id());
+        ExecutionOutcome outcome = persistExecutionResults(submission, executionPackage, tests, executionResponse);
+
+        int score = outcome.totalCount() == 0 ? 0 : (int) Math.round((outcome.passedCount() * 100.0) / outcome.totalCount());
+        boolean allPassed = outcome.totalCount() > 0 && outcome.passedCount() == outcome.totalCount();
+
+        submission.setPassedTestsCount(outcome.passedCount());
+        submission.setTotalTestsCount(outcome.totalCount());
+        submission.setScore(score);
+        submission.setVerdict(resolveVerdict(
+                allPassed,
+                outcome.hasCompareFail(),
+                outcome.hasCompilationError(),
+                outcome.hasRuntimeError(),
+                outcome.hasTimeout(),
+                outcome.hasMemoryLimit(),
+                outcome.hasInternalError()
+        ));
+        submission.setStatus(SubmissionStatus.FINISHED);
+        submission.setFinishedAt(LocalDateTime.now());
+        submission = taskSubmissionRepository.save(submission);
+
+        updateTaskProgressAfterExecution(taskProgress, score, allPassed);
+        taskProgressRepository.save(taskProgress);
+
+        recalculateModuleProgress(userId, courseId, moduleId);
+        recalculateCourseProgress(userId, courseId);
+
+        return toSubmissionResultResponse(submission, outcome.results(), visibilityByTestKey(tests));
+    }
+
+    @Transactional(readOnly = true)
+    public List<SubmissionHistoryItemResponse> getItemSubmissions(
+            Long userId,
+            Long courseId,
+            Long itemId,
+            String authorizationHeader
+    ) {
+        courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
+                .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
+
+        CourseItemExecutionPackage executionPackage =
+                courseExecutionPackageProvider.getExecutionPackage(itemId, authorizationHeader);
+        validateCourseItemContext(courseId, itemId, executionPackage);
+
+        return taskSubmissionRepository.findByUserIdAndCourseIdAndTaskIdOrderByCreatedAtDesc(userId, courseId, itemId)
+                .stream()
+                .map(this::toSubmissionHistoryItemResponse)
+                .toList();
+    }
+
+    @Transactional(readOnly = true)
+    public SubmissionResultResponse getSubmission(
+            Long userId,
+            Long submissionId,
+            String authorizationHeader
+    ) {
+        TaskSubmission submission = taskSubmissionRepository.findById(submissionId)
+                .orElseThrow(() -> new NotFoundException("Submission not found: " + submissionId));
+
+        if (!Objects.equals(submission.getUserId(), userId)) {
+            throw new ForbiddenException("Submission does not belong to current user");
+        }
+
+        List<SubmissionTestResult> results = submissionTestResultRepository
+                .findBySubmissionIdOrderByTestOrderAsc(submissionId);
+
+        CourseItemExecutionPackage executionPackage =
+                courseExecutionPackageProvider.getExecutionPackage(submission.getTaskId(), authorizationHeader);
+
+        return toSubmissionResultResponse(
+                submission,
+                results,
+                visibilityByTestKey(executionPackage)
+        );
+    }
+
     private ExecutionResponse executeByMode(ExecutionMode mode, ExecutionCreateRequest request) {
         if (mode == ExecutionMode.ONE_BY_ONE) {
             return executeOneByOne(request);
@@ -403,7 +542,7 @@ public class CodeRunnerSubmissionService {
         );
     }
 
-    private void validateRunnableExecutionPackage(
+    private void validateCourseItemContext(
             Long courseId,
             Long itemId,
             CourseItemExecutionPackage executionPackage
@@ -417,6 +556,14 @@ public class CodeRunnerSubmissionService {
         if (executionPackage.courseId() == null || !Objects.equals(executionPackage.courseId(), courseId)) {
             throw new NotFoundException("Course item not found in course");
         }
+    }
+
+    private void validateRunnableExecutionPackage(
+            Long courseId,
+            Long itemId,
+            CourseItemExecutionPackage executionPackage
+    ) {
+        validateCourseItemContext(courseId, itemId, executionPackage);
         if (executionPackage.moduleId() == null) {
             throw new IllegalStateException("CourseService returned empty moduleId");
         }
@@ -496,7 +643,7 @@ public class CodeRunnerSubmissionService {
     }
 
     private void markTaskProgressOnSubmit(TaskProgress taskProgress, LocalDateTime now) {
-        taskProgress.setAttemptsCount(taskProgress.getAttemptsCount() + 1);
+        taskProgress.setAttemptsCount(orZero(taskProgress.getAttemptsCount()) + 1);
         taskProgress.setLastSubmissionAt(now);
         taskProgress.setLastActivityAt(now);
         if (taskProgress.getStartedAt() == null) {
@@ -965,6 +1112,18 @@ public class CodeRunnerSubmissionService {
         );
     }
 
+    private SubmissionHistoryItemResponse toSubmissionHistoryItemResponse(TaskSubmission submission) {
+        return new SubmissionHistoryItemResponse(
+                submission.getId(),
+                submission.getTaskId(),
+                toSubmissionResultStatus(submission),
+                submission.getScore() == null ? null : submission.getScore().doubleValue(),
+                submission.getPassedTestsCount(),
+                submission.getTotalTestsCount(),
+                submission.getCreatedAt()
+        );
+    }
+
     private SubmissionTestResultResponse toSubmissionTestResultResponse(
             SubmissionTestResult result,
             Map<String, String> visibilityByTestKey
@@ -1055,6 +1214,13 @@ public class CodeRunnerSubmissionService {
                         test -> hasText(test.visibility()) ? test.visibility() : "OPEN",
                         (first, ignored) -> first
                 ));
+    }
+
+    private Map<String, String> visibilityByTestKey(CourseItemExecutionPackage executionPackage) {
+        if (executionPackage == null || executionPackage.tests() == null || executionPackage.tests().isEmpty()) {
+            return Map.of();
+        }
+        return visibilityByTestKey(executionPackage.tests());
     }
 
     private record ExecutionOutcome(
