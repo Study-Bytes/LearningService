@@ -38,6 +38,10 @@ management:
       probes:
         enabled: true
 
+logging:
+  pattern:
+    level: "%5p [requestId:%X{requestId}]"
+
 coderunner:
   course-service:
     base-url: ${CODERUNNER_COURSE_SERVICE_BASE_URL:http://localhost:8082}
