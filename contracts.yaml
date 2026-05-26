@@ -76,6 +76,85 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/learn/courses/{courseId}/leaderboard:
+    get:
+      tags: [Learning]
+      operationId: getCourseLeaderboard
+      summary: Get course progress leaderboard
+      description: Returns top 10 enrolled users by progress percent and the current JWT user's own place. Ties are ordered deterministically and do not expand the top 10 list.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Course leaderboard
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CourseLeaderboardResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/learn/courses/{courseId}/modules/{moduleId}/deadline-state:
+    get:
+      tags: [Learning]
+      operationId: getModuleDeadlineState
+      summary: Get current user module deadline state
+      description: Compares current JWT user's module and task completion timestamps with a module deadline supplied by the frontend.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ModuleId'
+        - name: deadlineAt
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+          example: '2026-06-01T23:59:00'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Module deadline state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleDeadlineStateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /api/v1/learn/courses/{courseId}/modules/{moduleId}/start:
+    post:
+      tags: [Learning]
+      operationId: startModule
+      summary: Start current user module timer
+      description: Idempotently fixes the current JWT user's module startedAt timestamp. First call creates/starts module_progress, repeated calls return the existing startedAt without resetting the timer.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ModuleId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Module start state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModuleStartResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
   /api/v1/learn/courses/{courseId}/items/{itemId}:
     get:
       tags: [Learning]
@@ -730,6 +809,128 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/LearningCourseItemStateResponse'
+
+    CourseLeaderboardResponse:
+      type: object
+      required: [courseId, top, currentUser]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        top:
+          type: array
+          maxItems: 10
+          items:
+            $ref: '#/components/schemas/CourseLeaderboardEntryResponse'
+        currentUser:
+          $ref: '#/components/schemas/CourseLeaderboardEntryResponse'
+
+    CourseLeaderboardEntryResponse:
+      type: object
+      required: [place, nickname, progressPercent]
+      properties:
+        place:
+          type: integer
+          format: int32
+          minimum: 1
+          example: 7
+        nickname:
+          type: string
+          example: student_nick
+        progressPercent:
+          type: number
+          format: double
+          minimum: 0
+          maximum: 100
+          example: 75.00
+
+    ModuleDeadlineStateResponse:
+      type: object
+      required:
+        - courseId
+        - moduleId
+        - deadlineAt
+        - moduleCompletedAt
+        - moduleCompletedBeforeDeadline
+        - deadlineStatus
+        - tasksCompletedBeforeDeadline
+        - tasksCompletedAfterDeadline
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        moduleId:
+          type: integer
+          format: int64
+          example: 10
+        deadlineAt:
+          type: string
+          format: date-time
+          example: '2026-06-01T23:59:00'
+        moduleCompletedAt:
+          type: string
+          nullable: true
+          format: date-time
+          example: '2026-06-02T10:15:00'
+        moduleCompletedBeforeDeadline:
+          type: boolean
+          nullable: true
+          description: Null when the module is not completed yet.
+          example: false
+        deadlineStatus:
+          $ref: '#/components/schemas/DeadlineStatus'
+        tasksCompletedBeforeDeadline:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeadlineTaskResponse'
+        tasksCompletedAfterDeadline:
+          type: array
+          items:
+            $ref: '#/components/schemas/DeadlineTaskResponse'
+
+    DeadlineTaskResponse:
+      type: object
+      required: [taskId, completedAt]
+      properties:
+        taskId:
+          type: integer
+          format: int64
+          example: 101
+        completedAt:
+          type: string
+          format: date-time
+          example: '2026-05-30T18:45:00'
+
+    DeadlineStatus:
+      type: string
+      enum:
+        - IN_PROGRESS_ON_TIME
+        - OVERDUE
+        - COMPLETED_ON_TIME
+        - COMPLETED_LATE
+
+    ModuleStartResponse:
+      type: object
+      required: [courseId, moduleId, startedAt, alreadyStarted]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        moduleId:
+          type: integer
+          format: int64
+          example: 10
+        startedAt:
+          type: string
+          format: date-time
+          example: '2026-05-26T12:00:00'
+        alreadyStarted:
+          type: boolean
+          description: False on the first successful start call, true on repeated calls when startedAt was already fixed.
+          example: false
 
     LearningCourseItemStateResponse:
       type: object
