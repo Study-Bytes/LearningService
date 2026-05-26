@@ -8,6 +8,7 @@ import org.studyplatform.learningservice.common.exception.ForbiddenException;
 import org.studyplatform.learningservice.common.exception.NotFoundException;
 import org.studyplatform.learningservice.courseenrollment.CourseEnrollment;
 import org.studyplatform.learningservice.courseenrollment.CourseEnrollmentRepository;
+import org.studyplatform.learningservice.courseenrollment.CourseEnrollmentRepository.CourseLeaderboardRow;
 import org.studyplatform.learningservice.taskprogress.TaskProgress;
 import org.studyplatform.learningservice.taskprogress.TaskProgressRepository;
 
@@ -41,7 +42,7 @@ public class LearningEnrollmentService {
     }
 
     @Transactional
-    public EnrollCourseResponse enroll(Long userId, Long courseId) {
+    public EnrollCourseResponse enroll(Long userId, Long courseId, String nickname) {
         CourseAvailabilityResponse availability = courseAvailabilityClient.getAvailability(courseId);
         if (availability == null || !Boolean.TRUE.equals(availability.availableForEnrollment())) {
             throw new ForbiddenException("Course is not available for enrollment");
@@ -54,6 +55,7 @@ public class LearningEnrollmentService {
         CourseEnrollment enrollment = new CourseEnrollment();
         enrollment.setUserId(userId);
         enrollment.setCourseId(courseId);
+        enrollment.setNickname(resolveNickname(userId, nickname));
         enrollment.setStatus(ProgressStatus.NOT_STARTED);
         enrollment.setProgressPercent(BigDecimal.ZERO);
         enrollment.setCompletedTasksCount(0);
@@ -69,6 +71,29 @@ public class LearningEnrollmentService {
                 .stream()
                 .map(MyCourseEnrollmentResponse::fromEntity)
                 .toList();
+    }
+
+    @Transactional
+    public CourseLeaderboardResponse getCourseLeaderboard(Long userId, Long courseId, String nickname) {
+        CourseEnrollment currentEnrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
+                .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
+
+        if (hasText(nickname) && !nickname.equals(currentEnrollment.getNickname())) {
+            currentEnrollment.setNickname(resolveNickname(userId, nickname));
+            courseEnrollmentRepository.saveAndFlush(currentEnrollment);
+        }
+
+        List<CourseLeaderboardEntryResponse> top = courseEnrollmentRepository.findTopLeaderboardRows(courseId)
+                .stream()
+                .map(this::toLeaderboardEntry)
+                .toList();
+
+        CourseLeaderboardEntryResponse currentUser = courseEnrollmentRepository
+                .findLeaderboardRowForUser(courseId, userId)
+                .map(this::toLeaderboardEntry)
+                .orElseThrow(() -> new IllegalStateException("Current user is missing from course leaderboard"));
+
+        return new CourseLeaderboardResponse(courseId, top, currentUser);
     }
 
     @Transactional(readOnly = true)
@@ -232,6 +257,26 @@ public class LearningEnrollmentService {
 
     private int orZero(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    private CourseLeaderboardEntryResponse toLeaderboardEntry(CourseLeaderboardRow row) {
+        return new CourseLeaderboardEntryResponse(
+                row.getRankPlace() == null ? null : Math.toIntExact(row.getRankPlace()),
+                row.getNickname(),
+                row.getProgressPercent() == null ? BigDecimal.ZERO : row.getProgressPercent()
+        );
+    }
+
+    private String resolveNickname(Long userId, String nickname) {
+        if (hasText(nickname)) {
+            String trimmed = nickname.trim();
+            return trimmed.length() > 100 ? trimmed.substring(0, 100) : trimmed;
+        }
+        return "User " + userId;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private record OrderedCourseItem(Long itemId, Long moduleId) {

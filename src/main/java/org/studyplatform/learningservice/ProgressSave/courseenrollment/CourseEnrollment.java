@@ -31,6 +31,9 @@ public class CourseEnrollment {
     @Column(name = "course_id", nullable = false)
     private Long courseId;
 
+    @Column(name = "nickname", nullable = false, length = 100)
+    private String nickname;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", nullable = false, columnDefinition = "progress_status")
@@ -75,6 +78,9 @@ public class CourseEnrollment {
         if (status == null) {
             status = ProgressStatus.NOT_STARTED;
         }
+        if (nickname == null || nickname.isBlank()) {
+            nickname = "User " + userId;
+        }
         if (progressPercent == null) {
             progressPercent = BigDecimal.ZERO;
         }
@@ -116,6 +122,14 @@ public class CourseEnrollment {
 
     public void setCourseId(Long courseId) {
         this.courseId = courseId;
+    }
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
     }
 
     public ProgressStatus getStatus() {

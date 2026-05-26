@@ -28,7 +28,7 @@ public class LearningEnrollmentController {
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable @Positive Long courseId
     ) {
-        return learningEnrollmentService.enroll(resolveUserId(jwt), courseId);
+        return learningEnrollmentService.enroll(resolveUserId(jwt), courseId, resolveNickname(jwt));
     }
 
     @GetMapping("/{courseId}")
@@ -37,6 +37,14 @@ public class LearningEnrollmentController {
             @PathVariable @Positive Long courseId
     ) {
         return learningEnrollmentService.getCourseState(resolveUserId(jwt), courseId);
+    }
+
+    @GetMapping("/{courseId}/leaderboard")
+    public CourseLeaderboardResponse getCourseLeaderboard(
+            @AuthenticationPrincipal Jwt jwt,
+            @PathVariable @Positive Long courseId
+    ) {
+        return learningEnrollmentService.getCourseLeaderboard(resolveUserId(jwt), courseId, resolveNickname(jwt));
     }
 
     @GetMapping("/{courseId}/items/{itemId}")
@@ -61,5 +69,18 @@ public class LearningEnrollmentController {
         } catch (NumberFormatException ex) {
             throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "JWT subject must be a numeric user id");
         }
+    }
+
+    private String resolveNickname(Jwt jwt) {
+        if (jwt == null) {
+            return null;
+        }
+        for (String claim : new String[]{"nickname", "nick", "username", "preferred_username", "name", "email"}) {
+            String value = jwt.getClaimAsString(claim);
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return null;
     }
 }
