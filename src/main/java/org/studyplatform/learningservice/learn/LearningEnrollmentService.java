@@ -25,17 +25,20 @@ import java.util.stream.Collectors;
 public class LearningEnrollmentService {
 
     private final CourseAvailabilityClient courseAvailabilityClient;
+    private final CourseOwnershipClient courseOwnershipClient;
     private final CourseStructureClient courseStructureClient;
     private final CourseEnrollmentRepository courseEnrollmentRepository;
     private final TaskProgressRepository taskProgressRepository;
 
     public LearningEnrollmentService(
             CourseAvailabilityClient courseAvailabilityClient,
+            CourseOwnershipClient courseOwnershipClient,
             CourseStructureClient courseStructureClient,
             CourseEnrollmentRepository courseEnrollmentRepository,
             TaskProgressRepository taskProgressRepository
     ) {
         this.courseAvailabilityClient = courseAvailabilityClient;
+        this.courseOwnershipClient = courseOwnershipClient;
         this.courseStructureClient = courseStructureClient;
         this.courseEnrollmentRepository = courseEnrollmentRepository;
         this.taskProgressRepository = taskProgressRepository;
@@ -76,9 +79,9 @@ public class LearningEnrollmentService {
     @Transactional
     public CourseLeaderboardResponse getCourseLeaderboard(Long userId, Long courseId, String nickname) {
         CourseEnrollment currentEnrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
-                .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
+                .orElse(null);
 
-        if (hasText(nickname) && !nickname.equals(currentEnrollment.getNickname())) {
+        if (currentEnrollment != null && hasText(nickname) && !nickname.equals(currentEnrollment.getNickname())) {
             currentEnrollment.setNickname(resolveNickname(userId, nickname));
             courseEnrollmentRepository.saveAndFlush(currentEnrollment);
         }
@@ -88,12 +91,19 @@ public class LearningEnrollmentService {
                 .map(this::toLeaderboardEntry)
                 .toList();
 
+        if (currentEnrollment == null) {
+            if (!courseOwnershipClient.isCourseOwner(courseId, userId)) {
+                throw new ForbiddenException("User is not enrolled in course");
+            }
+            return new CourseLeaderboardResponse(courseId, LeaderboardViewerRole.TEACHER, top, null);
+        }
+
         CourseLeaderboardEntryResponse currentUser = courseEnrollmentRepository
                 .findLeaderboardRowForUser(courseId, userId)
                 .map(this::toLeaderboardEntry)
                 .orElseThrow(() -> new IllegalStateException("Current user is missing from course leaderboard"));
 
-        return new CourseLeaderboardResponse(courseId, top, currentUser);
+        return new CourseLeaderboardResponse(courseId, LeaderboardViewerRole.LEARNER, top, currentUser);
     }
 
     @Transactional(readOnly = true)

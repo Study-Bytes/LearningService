@@ -812,19 +812,30 @@ components:
 
     CourseLeaderboardResponse:
       type: object
-      required: [courseId, top, currentUser]
+      required: [courseId, viewerRole, top, currentUser]
       properties:
         courseId:
           type: integer
           format: int64
           example: 3
+        viewerRole:
+          $ref: '#/components/schemas/LeaderboardViewerRole'
         top:
           type: array
           maxItems: 10
           items:
             $ref: '#/components/schemas/CourseLeaderboardEntryResponse'
         currentUser:
-          $ref: '#/components/schemas/CourseLeaderboardEntryResponse'
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/CourseLeaderboardEntryResponse'
+          description: Null when the current JWT user can view the leaderboard as the course teacher but is not enrolled as a learner.
+
+    LeaderboardViewerRole:
+      type: string
+      enum:
+        - LEARNER
+        - TEACHER
 
     CourseLeaderboardEntryResponse:
       type: object
