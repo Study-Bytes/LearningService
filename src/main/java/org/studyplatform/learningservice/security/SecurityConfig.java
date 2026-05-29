@@ -27,6 +27,7 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/learn/courses/*/leaderboard").authenticated()
                         .requestMatchers(HttpMethod.GET, "/api/v1/learn/courses/*").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/learn/courses/*/modules/*/start").authenticated()
+                        .requestMatchers(HttpMethod.POST, "/api/v1/learn/courses/*/items/*/complete").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/learn/courses/*/items/*/run").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/learn/courses/*/items/*/submit").authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/learn/courses/*/enroll").authenticated()

@@ -28,6 +28,7 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     @Query(
             value = """
                     SELECT ranked.rank_place AS "rankPlace",
+                           ranked.user_id AS "userId",
                            ranked.nickname AS nickname,
                            ranked.progress_percent AS "progressPercent"
                     FROM (
@@ -54,6 +55,7 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
     @Query(
             value = """
                     SELECT ranked.rank_place AS "rankPlace",
+                           ranked.user_id AS "userId",
                            ranked.nickname AS nickname,
                            ranked.progress_percent AS "progressPercent"
                     FROM (
@@ -81,6 +83,8 @@ public interface CourseEnrollmentRepository extends JpaRepository<CourseEnrollme
 
     interface CourseLeaderboardRow {
         Long getRankPlace();
+
+        Long getUserId();
 
         String getNickname();
 

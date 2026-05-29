@@ -121,7 +121,9 @@ class LearningEnrollmentServiceTest {
 
         assertThat(response.viewerRole()).isEqualTo(LeaderboardViewerRole.LEARNER);
         assertThat(response.top()).hasSize(1);
+        assertThat(response.top().getFirst().userId()).isEqualTo(1L);
         assertThat(response.currentUser()).isNotNull();
+        assertThat(response.currentUser().userId()).isEqualTo(5L);
         assertThat(response.currentUser().place()).isEqualTo(3);
         verifyNoInteractions(courseOwnershipClient);
     }
@@ -260,6 +262,11 @@ class LearningEnrollmentServiceTest {
             @Override
             public Long getRankPlace() {
                 return place;
+            }
+
+            @Override
+            public Long getUserId() {
+                return "student".equals(nickname) || "new".equals(nickname) ? 5L : place;
             }
 
             @Override
