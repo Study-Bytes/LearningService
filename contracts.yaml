@@ -247,7 +247,7 @@ paths:
       tags: [Submissions]
       operationId: submitItem
       summary: Submit current item attempt
-      description: Submits current course item for the enrolled JWT user using all tests and updates task, module and course progress.
+      description: Submits current course item for the enrolled JWT user. CODING and SQL items are checked by CodeExecutor; QUIZ items compare selectedOptionIds with the trusted CourseService quiz evaluation package, store the attempt, and update progress without CodeExecutor.
       parameters:
         - $ref: '#/components/parameters/CourseId'
         - $ref: '#/components/parameters/ItemId'
