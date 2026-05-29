@@ -271,6 +271,7 @@ public class LearningEnrollmentService {
 
     private CourseLeaderboardEntryResponse toLeaderboardEntry(CourseLeaderboardRow row) {
         return new CourseLeaderboardEntryResponse(
+                row.getUserId(),
                 row.getRankPlace() == null ? null : Math.toIntExact(row.getRankPlace()),
                 row.getNickname(),
                 row.getProgressPercent() == null ? BigDecimal.ZERO : row.getProgressPercent()

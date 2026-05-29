@@ -180,6 +180,33 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/v1/learn/courses/{courseId}/items/{itemId}/complete:
+    post:
+      tags: [Learning]
+      operationId: completeContentItem
+      summary: Complete content-only course item
+      description: Marks a THEORY or FILE item as completed for the enrolled JWT user without calling CodeExecutor, then recalculates module and course progress.
+      parameters:
+        - $ref: '#/components/parameters/CourseId'
+        - $ref: '#/components/parameters/ItemId'
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Content item completion state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearningItemCompletionResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
   /api/v1/learn/courses/{courseId}/items/{itemId}/run:
     post:
       tags: [Submissions]
@@ -839,8 +866,12 @@ components:
 
     CourseLeaderboardEntryResponse:
       type: object
-      required: [place, nickname, progressPercent]
+      required: [userId, place, nickname, progressPercent]
       properties:
+        userId:
+          type: integer
+          format: int64
+          example: 42
         place:
           type: integer
           format: int32
@@ -855,6 +886,32 @@ components:
           minimum: 0
           maximum: 100
           example: 75.00
+
+    LearningItemCompletionResponse:
+      type: object
+      required: [courseId, moduleId, itemId, completed, completedAt, status]
+      properties:
+        courseId:
+          type: integer
+          format: int64
+          example: 3
+        moduleId:
+          type: integer
+          format: int64
+          example: 10
+        itemId:
+          type: integer
+          format: int64
+          example: 101
+        completed:
+          type: boolean
+          example: true
+        completedAt:
+          type: string
+          format: date-time
+          example: '2026-06-01T12:30:00'
+        status:
+          $ref: '#/components/schemas/ProgressStatus'
 
     ModuleDeadlineStateResponse:
       type: object
