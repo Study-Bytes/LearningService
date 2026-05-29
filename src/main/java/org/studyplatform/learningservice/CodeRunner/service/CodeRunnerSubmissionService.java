@@ -18,6 +18,8 @@ import org.studyplatform.learningservice.CodeRunner.api.SubmissionResultStatus;
 import org.studyplatform.learningservice.CodeRunner.api.SubmissionTestResultResponse;
 import org.studyplatform.learningservice.CodeRunner.client.course.CourseItemExecutionPackage;
 import org.studyplatform.learningservice.CodeRunner.client.course.CourseExecutionPackageProvider;
+import org.studyplatform.learningservice.CodeRunner.client.course.QuizEvaluationPackage;
+import org.studyplatform.learningservice.CodeRunner.client.course.QuizEvaluationPackageProvider;
 import org.studyplatform.learningservice.CodeRunner.client.executor.CodeExecutorClient;
 import org.studyplatform.learningservice.CodeRunner.client.executor.ExecutionCreateRequest;
 import org.studyplatform.learningservice.CodeRunner.client.executor.ExecutionResponse;
@@ -50,6 +52,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.stream.Collectors;
 
 @Service
@@ -58,6 +62,7 @@ public class CodeRunnerSubmissionService {
     private static final Logger log = LoggerFactory.getLogger(CodeRunnerSubmissionService.class);
 
     private final CourseExecutionPackageProvider courseExecutionPackageProvider;
+    private final QuizEvaluationPackageProvider quizEvaluationPackageProvider;
     private final CodeExecutorClient codeExecutorClient;
     private final TaskSubmissionRepository taskSubmissionRepository;
     private final SubmissionTestResultRepository submissionTestResultRepository;
@@ -68,6 +73,7 @@ public class CodeRunnerSubmissionService {
 
     public CodeRunnerSubmissionService(
             CourseExecutionPackageProvider courseExecutionPackageProvider,
+            QuizEvaluationPackageProvider quizEvaluationPackageProvider,
             CodeExecutorClient codeExecutorClient,
             TaskSubmissionRepository taskSubmissionRepository,
             SubmissionTestResultRepository submissionTestResultRepository,
@@ -77,6 +83,7 @@ public class CodeRunnerSubmissionService {
             EntityManager entityManager
     ) {
         this.courseExecutionPackageProvider = courseExecutionPackageProvider;
+        this.quizEvaluationPackageProvider = quizEvaluationPackageProvider;
         this.codeExecutorClient = codeExecutorClient;
         this.taskSubmissionRepository = taskSubmissionRepository;
         this.submissionTestResultRepository = submissionTestResultRepository;
@@ -105,7 +112,7 @@ public class CodeRunnerSubmissionService {
         Long moduleId = resolveAuthoritativeId(taskProgress.getModuleId(), executionPackage.moduleId());
         syncTaskProgressCourseContext(taskProgress, courseId, moduleId);
 
-        int submissionNumber = nextSubmissionNumber(userId, taskId);
+        int submissionNumber = reserveNextSubmissionNumber(userId, taskId);
 
         TaskSubmission submission = new TaskSubmission();
         submission.setUserId(userId);
@@ -276,6 +283,8 @@ public class CodeRunnerSubmissionService {
         String language = resolveRunLanguage(executionPackage);
         Long moduleId = executionPackage.moduleId();
 
+        lockUserTaskSubmissionSequence(userId, itemId);
+
         TaskProgress taskProgress = taskProgressRepository.findByUserIdAndCourseIdAndTaskId(userId, courseId, itemId)
                 .orElseGet(() -> createTaskProgress(userId, courseId, moduleId, itemId));
         syncTaskProgressCourseContext(taskProgress, courseId, moduleId);
@@ -380,12 +389,18 @@ public class CodeRunnerSubmissionService {
 
         CourseItemExecutionPackage executionPackage =
                 courseExecutionPackageProvider.getExecutionPackage(itemId, authorizationHeader);
+        validateCourseItemContext(courseId, itemId, executionPackage);
+        if ("QUIZ".equals(nullableUpper(executionPackage.itemType()))) {
+            return submitQuizItem(userId, courseId, itemId, authorizationHeader, request, enrollment, executionPackage);
+        }
         validateRunnableExecutionPackage(courseId, itemId, executionPackage);
 
         List<CourseItemExecutionPackage.ExecutionTest> tests = executionPackage.tests();
         String code = resolveRunCode(executionPackage, request);
         String language = resolveRunLanguage(executionPackage);
         Long moduleId = executionPackage.moduleId();
+
+        lockUserTaskSubmissionSequence(userId, itemId);
 
         TaskProgress taskProgress = taskProgressRepository.findByUserIdAndCourseIdAndTaskId(userId, courseId, itemId)
                 .orElseGet(() -> createTaskProgress(userId, courseId, moduleId, itemId));
@@ -469,6 +484,114 @@ public class CodeRunnerSubmissionService {
         );
 
         return toSubmissionResultResponse(submission, outcome.results(), visibilityByTestKey(tests));
+    }
+
+    private SubmissionResultResponse submitQuizItem(
+            Long userId,
+            Long courseId,
+            Long itemId,
+            String authorizationHeader,
+            RunItemRequest request,
+            CourseEnrollment enrollment,
+            CourseItemExecutionPackage executionPackage
+    ) {
+        if (executionPackage.moduleId() == null) {
+            throw new IllegalStateException("CourseService returned empty moduleId");
+        }
+
+        QuizEvaluationPackage quizPackage = quizEvaluationPackageProvider.getQuizEvaluationPackage(itemId, authorizationHeader);
+        validateQuizEvaluationPackage(courseId, itemId, executionPackage.moduleId(), quizPackage);
+
+        List<Long> selectedOptionIds = normalizeOptionIds(request.getSelectedOptionIds());
+        if (selectedOptionIds.isEmpty()) {
+            throw unprocessable("At least one quiz option must be selected");
+        }
+
+        Set<Long> validOptionIds = quizPackage.options().stream()
+                .map(QuizEvaluationPackage.QuizOption::id)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(TreeSet::new));
+        List<Long> correctOptionIds = quizPackage.options().stream()
+                .filter(option -> Boolean.TRUE.equals(option.correct()))
+                .map(QuizEvaluationPackage.QuizOption::id)
+                .filter(Objects::nonNull)
+                .toList();
+        if (correctOptionIds.isEmpty()) {
+            throw unprocessable("Quiz has no correct options");
+        }
+
+        for (Long selectedOptionId : selectedOptionIds) {
+            if (!validOptionIds.contains(selectedOptionId)) {
+                throw unprocessable("Selected quiz option does not belong to item");
+            }
+        }
+
+        boolean allPassed = sameIds(selectedOptionIds, correctOptionIds);
+        int score = allPassed ? 100 : 0;
+        int passedCount = allPassed ? 1 : 0;
+        Long moduleId = executionPackage.moduleId();
+
+        lockUserTaskSubmissionSequence(userId, itemId);
+
+        TaskProgress taskProgress = taskProgressRepository.findByUserIdAndCourseIdAndTaskId(userId, courseId, itemId)
+                .orElseGet(() -> createTaskProgress(userId, courseId, moduleId, itemId));
+        syncTaskProgressCourseContext(taskProgress, courseId, moduleId);
+
+        int submissionNumber = nextSubmissionNumber(userId, itemId);
+        TaskSubmission submission = new TaskSubmission();
+        submission.setUserId(userId);
+        submission.setCourseId(courseId);
+        submission.setModuleId(moduleId);
+        submission.setTaskId(itemId);
+        submission.setSubmissionNumber(submissionNumber);
+        submission.setLanguage("quiz");
+        submission.setSourceCode(optionIdsSnapshot(selectedOptionIds));
+        submission.setStatus(SubmissionStatus.QUEUED);
+        submission = taskSubmissionRepository.save(submission);
+
+        LocalDateTime now = LocalDateTime.now();
+        markEnrollmentOnActivity(enrollment, now);
+        markTaskProgressOnSubmit(taskProgress, now);
+        courseEnrollmentRepository.save(enrollment);
+        taskProgressRepository.save(taskProgress);
+
+        submission.setStatus(SubmissionStatus.FINISHED);
+        submission.setStartedAt(now);
+        submission.setFinishedAt(now);
+        submission.setPassedTestsCount(passedCount);
+        submission.setTotalTestsCount(1);
+        submission.setScore(score);
+        submission.setVerdict(allPassed ? SubmissionVerdict.OK : SubmissionVerdict.WA);
+        submission = taskSubmissionRepository.save(submission);
+
+        SubmissionTestResult result = new SubmissionTestResult();
+        result.setSubmissionId(submission.getId());
+        result.setTestKey("quiz-answer");
+        result.setTestOrder(0);
+        result.setStatus(allPassed ? TestResultStatus.PASSED : TestResultStatus.FAILED);
+        result.setInputSnapshot(optionIdsSnapshot(selectedOptionIds));
+        result.setExpectedOutput(optionIdsSnapshot(correctOptionIds));
+        result.setErrorOutput(allPassed ? null : "Wrong answer");
+        result = submissionTestResultRepository.save(result);
+
+        updateTaskProgressAfterExecution(taskProgress, score, allPassed);
+        taskProgressRepository.save(taskProgress);
+
+        recalculateModuleProgress(userId, courseId, moduleId);
+        recalculateCourseProgress(userId, courseId);
+
+        log.info(
+                "Submit quiz finished userId={} courseId={} itemId={} submissionId={} status={} score={} selectedOptions={}",
+                userId,
+                courseId,
+                itemId,
+                submission.getId(),
+                toSubmissionResultStatus(submission),
+                submission.getScore(),
+                selectedOptionIds.size()
+        );
+
+        return toSubmissionResultResponse(submission, List.of(result), Map.of("quiz-answer", "OPEN"));
     }
 
     @Transactional(readOnly = true)
@@ -621,6 +744,32 @@ public class CodeRunnerSubmissionService {
         }
     }
 
+    private void validateQuizEvaluationPackage(
+            Long courseId,
+            Long itemId,
+            Long moduleId,
+            QuizEvaluationPackage quizPackage
+    ) {
+        if (quizPackage == null) {
+            throw new IllegalStateException("CourseService returned empty quiz evaluation package");
+        }
+        if (quizPackage.itemId() == null || !Objects.equals(quizPackage.itemId(), itemId)) {
+            throw new NotFoundException("Course item not found: " + itemId);
+        }
+        if (quizPackage.courseId() == null || !Objects.equals(quizPackage.courseId(), courseId)) {
+            throw new NotFoundException("Course item not found in course");
+        }
+        if (quizPackage.moduleId() == null || !Objects.equals(quizPackage.moduleId(), moduleId)) {
+            throw new IllegalStateException("CourseService returned mismatched quiz moduleId");
+        }
+        if (!"QUIZ".equals(nullableUpper(quizPackage.itemType()))) {
+            throw unprocessable("Item type is not QUIZ");
+        }
+        if (quizPackage.options() == null || quizPackage.options().isEmpty()) {
+            throw unprocessable("Quiz has no options");
+        }
+    }
+
     private void validateRunnableExecutionPackage(
             Long courseId,
             Long itemId,
@@ -685,6 +834,27 @@ public class CodeRunnerSubmissionService {
         throw unprocessable("Course item language is required");
     }
 
+    private List<Long> normalizeOptionIds(List<Long> optionIds) {
+        if (optionIds == null || optionIds.isEmpty()) {
+            return List.of();
+        }
+        return optionIds.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.toCollection(TreeSet::new))
+                .stream()
+                .toList();
+    }
+
+    private String optionIdsSnapshot(List<Long> optionIds) {
+        return normalizeOptionIds(optionIds).stream()
+                .map(String::valueOf)
+                .collect(Collectors.joining(",", "[", "]"));
+    }
+
+    private boolean sameIds(List<Long> first, List<Long> second) {
+        return new TreeSet<>(first).equals(new TreeSet<>(second));
+    }
+
     private Long resolveAuthoritativeId(Long currentId, Long courseServiceId) {
         return courseServiceId == null ? currentId : courseServiceId;
     }
@@ -703,6 +873,18 @@ public class CodeRunnerSubmissionService {
                 .findTopByUserIdAndTaskIdOrderBySubmissionNumberDesc(userId, taskId)
                 .map(s -> s.getSubmissionNumber() + 1)
                 .orElse(1);
+    }
+
+    private int reserveNextSubmissionNumber(Long userId, Long taskId) {
+        lockUserTaskSubmissionSequence(userId, taskId);
+        return nextSubmissionNumber(userId, taskId);
+    }
+
+    private void lockUserTaskSubmissionSequence(Long userId, Long taskId) {
+        String lockKey = userId + ":" + taskId;
+        entityManager.createNativeQuery("select pg_advisory_xact_lock(hashtextextended(?1, 0))")
+                .setParameter(1, lockKey)
+                .getSingleResult();
     }
 
     private void markTaskProgressOnSubmit(TaskProgress taskProgress, LocalDateTime now) {
