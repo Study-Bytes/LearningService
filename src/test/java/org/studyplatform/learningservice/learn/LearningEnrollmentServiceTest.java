@@ -112,6 +112,12 @@ class LearningEnrollmentServiceTest {
         LearningEnrollmentService service = service();
         CourseEnrollment enrollment = enrollment(5L, 10L, "student", new BigDecimal("40.00"), ProgressStatus.IN_PROGRESS);
         when(courseEnrollmentRepository.findByUserIdAndCourseId(5L, 10L)).thenReturn(Optional.of(enrollment));
+        when(courseStructureClient.getCourse(10L)).thenReturn(courseStructure());
+        when(taskProgressRepository.findByUserIdAndCourseId(5L, 10L)).thenReturn(List.of(
+                task(101L, 100L, ProgressStatus.COMPLETED, true),
+                task(102L, 100L, ProgressStatus.IN_PROGRESS, false),
+                task(201L, 200L, ProgressStatus.NOT_STARTED, false)
+        ));
         when(courseEnrollmentRepository.findTopLeaderboardRows(10L))
                 .thenReturn(List.of(row(1L, "alice", "90.00")));
         when(courseEnrollmentRepository.findLeaderboardRowForUser(10L, 5L))
@@ -133,6 +139,12 @@ class LearningEnrollmentServiceTest {
         LearningEnrollmentService service = service();
         CourseEnrollment enrollment = enrollment(5L, 10L, "old", new BigDecimal("40.00"), ProgressStatus.IN_PROGRESS);
         when(courseEnrollmentRepository.findByUserIdAndCourseId(5L, 10L)).thenReturn(Optional.of(enrollment));
+        when(courseStructureClient.getCourse(10L)).thenReturn(courseStructure());
+        when(taskProgressRepository.findByUserIdAndCourseId(5L, 10L)).thenReturn(List.of(
+                task(101L, 100L, ProgressStatus.COMPLETED, true),
+                task(102L, 100L, ProgressStatus.IN_PROGRESS, false),
+                task(201L, 200L, ProgressStatus.NOT_STARTED, false)
+        ));
         when(courseEnrollmentRepository.findTopLeaderboardRows(10L)).thenReturn(List.of());
         when(courseEnrollmentRepository.findLeaderboardRowForUser(10L, 5L))
                 .thenReturn(Optional.of(row(2L, "new", "40.00")));
@@ -181,16 +193,50 @@ class LearningEnrollmentServiceTest {
                 task(101L, 100L, ProgressStatus.COMPLETED, true),
                 task(102L, 100L, ProgressStatus.LOCKED, false)
         ));
+        when(taskProgressRepository.save(any(TaskProgress.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(courseEnrollmentRepository.save(any(CourseEnrollment.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         LearningCourseStateResponse response = service.getCourseState(5L, 10L);
 
-        assertThat(response.progressPercent()).isEqualTo(50);
+        assertThat(response.progressPercent()).isEqualTo(33);
         assertThat(response.nextItemId()).isEqualTo(102L);
         assertThat(response.items())
                 .extracting(LearningCourseItemStateResponse::itemId)
                 .containsExactly(101L, 102L, 201L);
         assertThat(response.items().get(0).completed()).isTrue();
         assertThat(response.items().get(1).locked()).isTrue();
+        assertThat(enrollment.getProgressPercent()).isEqualByComparingTo("33.33");
+        assertThat(enrollment.getCompletedTasksCount()).isEqualTo(1);
+        assertThat(enrollment.getTotalTasksCount()).isEqualTo(3);
+
+        ArgumentCaptor<TaskProgress> saved = ArgumentCaptor.forClass(TaskProgress.class);
+        verify(taskProgressRepository).save(saved.capture());
+        assertThat(saved.getValue().getTaskId()).isEqualTo(201L);
+        assertThat(saved.getValue().getModuleId()).isEqualTo(200L);
+        assertThat(saved.getValue().getStatus()).isEqualTo(ProgressStatus.NOT_STARTED);
+        assertThat(saved.getValue().getFirstOpenedAt()).isNull();
+    }
+
+    @Test
+    void getCourseStateUsesAllCourseItemsAsProgressDenominator() {
+        LearningEnrollmentService service = service();
+        CourseEnrollment enrollment = enrollment(5L, 10L, "student", new BigDecimal("100.00"), ProgressStatus.COMPLETED);
+        when(courseEnrollmentRepository.findByUserIdAndCourseId(5L, 10L)).thenReturn(Optional.of(enrollment));
+        when(courseStructureClient.getCourse(10L)).thenReturn(courseStructure());
+        when(taskProgressRepository.findByUserIdAndCourseId(5L, 10L)).thenReturn(List.of(
+                task(101L, 100L, ProgressStatus.COMPLETED, true),
+                task(102L, 100L, ProgressStatus.COMPLETED, true)
+        ));
+        when(taskProgressRepository.save(any(TaskProgress.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(courseEnrollmentRepository.save(any(CourseEnrollment.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        LearningCourseStateResponse response = service.getCourseState(5L, 10L);
+
+        assertThat(response.progressPercent()).isEqualTo(66);
+        assertThat(response.enrollmentStatus()).isEqualTo(ProgressStatus.IN_PROGRESS);
+        assertThat(enrollment.getProgressPercent()).isEqualByComparingTo("66.67");
+        assertThat(enrollment.getCompletedTasksCount()).isEqualTo(2);
+        assertThat(enrollment.getTotalTasksCount()).isEqualTo(3);
     }
 
     @Test
