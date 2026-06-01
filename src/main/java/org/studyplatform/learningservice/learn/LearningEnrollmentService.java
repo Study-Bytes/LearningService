@@ -13,11 +13,13 @@ import org.studyplatform.learningservice.taskprogress.TaskProgress;
 import org.studyplatform.learningservice.taskprogress.TaskProgressRepository;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -86,6 +88,10 @@ public class LearningEnrollmentService {
             courseEnrollmentRepository.saveAndFlush(currentEnrollment);
         }
 
+        if (currentEnrollment != null) {
+            syncEnrollmentWithCourseStructure(userId, courseId, currentEnrollment);
+        }
+
         List<CourseLeaderboardEntryResponse> top = courseEnrollmentRepository.findTopLeaderboardRows(courseId)
                 .stream()
                 .map(this::toLeaderboardEntry)
@@ -106,20 +112,19 @@ public class LearningEnrollmentService {
         return new CourseLeaderboardResponse(courseId, LeaderboardViewerRole.LEARNER, top, currentUser);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public LearningCourseStateResponse getCourseState(Long userId, Long courseId) {
         CourseEnrollment enrollment = courseEnrollmentRepository.findByUserIdAndCourseId(userId, courseId)
                 .orElseThrow(() -> new ForbiddenException("User is not enrolled in course"));
 
         CourseStructureResponse course = courseStructureClient.getCourse(courseId);
-        List<Long> orderedItemIds = orderedItemIds(course);
-        Map<Long, TaskProgress> progressByTaskId = taskProgressRepository.findByUserIdAndCourseId(userId, courseId)
-                .stream()
-                .collect(Collectors.toMap(
-                        TaskProgress::getTaskId,
-                        Function.identity(),
-                        (first, ignored) -> first
-                ));
+        List<OrderedCourseItem> orderedItems = orderedCourseItems(course);
+        Map<Long, TaskProgress> progressByTaskId = syncTaskProgressWithCourseStructure(userId, courseId, orderedItems);
+        recalculateEnrollmentProgress(enrollment, orderedItems, progressByTaskId);
+
+        List<Long> orderedItemIds = orderedItems.stream()
+                .map(OrderedCourseItem::itemId)
+                .toList();
 
         List<LearningCourseItemStateResponse> itemStates = orderedItemIds.stream()
                 .map(itemId -> toItemState(itemId, progressByTaskId.get(itemId)))
@@ -162,11 +167,125 @@ public class LearningEnrollmentService {
         );
     }
 
-    private List<Long> orderedItemIds(CourseStructureResponse course) {
-        return orderedCourseItems(course)
+    private void syncEnrollmentWithCourseStructure(Long userId, Long courseId, CourseEnrollment enrollment) {
+        CourseStructureResponse course = courseStructureClient.getCourse(courseId);
+        List<OrderedCourseItem> orderedItems = orderedCourseItems(course);
+        Map<Long, TaskProgress> progressByTaskId = syncTaskProgressWithCourseStructure(userId, courseId, orderedItems);
+        recalculateEnrollmentProgress(enrollment, orderedItems, progressByTaskId);
+        courseEnrollmentRepository.flush();
+    }
+
+    private Map<Long, TaskProgress> syncTaskProgressWithCourseStructure(
+            Long userId,
+            Long courseId,
+            List<OrderedCourseItem> orderedItems
+    ) {
+        Map<Long, TaskProgress> progressByTaskId = taskProgressRepository.findByUserIdAndCourseId(userId, courseId)
                 .stream()
-                .map(OrderedCourseItem::itemId)
-                .toList();
+                .collect(Collectors.toMap(
+                        TaskProgress::getTaskId,
+                        Function.identity(),
+                        (first, ignored) -> first
+                ));
+
+        for (OrderedCourseItem item : orderedItems) {
+            TaskProgress progress = progressByTaskId.get(item.itemId());
+            if (progress == null) {
+                TaskProgress created = createMaterializedTaskProgress(
+                        userId,
+                        courseId,
+                        item.moduleId(),
+                        item.itemId()
+                );
+                progressByTaskId.put(item.itemId(), created);
+            } else if (!Objects.equals(progress.getModuleId(), item.moduleId())) {
+                progress.setModuleId(item.moduleId());
+                taskProgressRepository.save(progress);
+            }
+        }
+
+        return progressByTaskId;
+    }
+
+    private TaskProgress createMaterializedTaskProgress(Long userId, Long courseId, Long moduleId, Long itemId) {
+        TaskProgress progress = new TaskProgress();
+        progress.setUserId(userId);
+        progress.setCourseId(courseId);
+        progress.setModuleId(moduleId);
+        progress.setTaskId(itemId);
+        progress.setStatus(ProgressStatus.NOT_STARTED);
+        progress.setAttemptsCount(0);
+        progress.setBestScore(0);
+        progress.setLastScore(0);
+        progress.setIsCompleted(false);
+        return taskProgressRepository.save(progress);
+    }
+
+    private void recalculateEnrollmentProgress(
+            CourseEnrollment enrollment,
+            List<OrderedCourseItem> orderedItems,
+            Map<Long, TaskProgress> progressByTaskId
+    ) {
+        int total = orderedItems.size();
+        int completed = (int) orderedItems.stream()
+                .map(item -> progressByTaskId.get(item.itemId()))
+                .filter(Objects::nonNull)
+                .filter(this::isCompleted)
+                .count();
+        int score = orderedItems.stream()
+                .map(item -> progressByTaskId.get(item.itemId()))
+                .filter(Objects::nonNull)
+                .map(TaskProgress::getBestScore)
+                .mapToInt(this::orZero)
+                .sum();
+        BigDecimal progressPercent = percent(completed, total);
+        ProgressStatus status = resolveEnrollmentStatus(completed, total);
+
+        boolean changed = !Objects.equals(enrollment.getTotalTasksCount(), total)
+                || !Objects.equals(enrollment.getCompletedTasksCount(), completed)
+                || !Objects.equals(enrollment.getTotalScore(), score)
+                || enrollment.getProgressPercent() == null
+                || enrollment.getProgressPercent().compareTo(progressPercent) != 0
+                || enrollment.getStatus() != status;
+
+        if (!changed) {
+            return;
+        }
+
+        enrollment.setTotalTasksCount(total);
+        enrollment.setCompletedTasksCount(completed);
+        enrollment.setTotalScore(score);
+        enrollment.setProgressPercent(progressPercent);
+        enrollment.setStatus(status);
+
+        LocalDateTime now = LocalDateTime.now();
+        if (status != ProgressStatus.NOT_STARTED && enrollment.getStartedAt() == null) {
+            enrollment.setStartedAt(now);
+        }
+        if (status == ProgressStatus.COMPLETED && enrollment.getCompletedAt() == null) {
+            enrollment.setCompletedAt(now);
+        }
+
+        courseEnrollmentRepository.save(enrollment);
+    }
+
+    private ProgressStatus resolveEnrollmentStatus(int completed, int total) {
+        if (completed == 0) {
+            return ProgressStatus.NOT_STARTED;
+        }
+        if (completed == total && total > 0) {
+            return ProgressStatus.COMPLETED;
+        }
+        return ProgressStatus.IN_PROGRESS;
+    }
+
+    private BigDecimal percent(int completed, int total) {
+        if (total <= 0) {
+            return BigDecimal.ZERO;
+        }
+        return BigDecimal.valueOf(completed)
+                .multiply(BigDecimal.valueOf(100))
+                .divide(BigDecimal.valueOf(total), 2, RoundingMode.HALF_UP);
     }
 
     private List<OrderedCourseItem> orderedCourseItems(CourseStructureResponse course) {
